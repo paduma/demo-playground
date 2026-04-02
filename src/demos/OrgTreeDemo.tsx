@@ -19,7 +19,7 @@ import {
 
 const { Text } = Typography;
 
-/* ── 单个树节点组件 ── */
+// --- 单个树节点组件 ---
 
 interface TreeNodeProps {
   node: OrgNode;
@@ -48,7 +48,7 @@ const TreeNodeItem: React.FC<TreeNodeProps> = ({
   // 搜索时隐藏不匹配的节点
   if (isSearching && !isMatched) return null;
 
-  /** 高亮搜索关键词 */
+  // 高亮搜索关键词
   const highlightName = (text: string) => {
     if (!searchKeyword) return text;
     const idx = text.toLowerCase().indexOf(searchKeyword);
@@ -147,7 +147,7 @@ const TreeNodeItem: React.FC<TreeNodeProps> = ({
   );
 };
 
-/* ── 节点类型中文映射 ── */
+// 节点类型中文映射
 const NODE_TYPE_LABELS: Record<OrgNodeType, string> = {
   company: '公司',
   department: '部门',
@@ -155,7 +155,7 @@ const NODE_TYPE_LABELS: Record<OrgNodeType, string> = {
   person: '人员',
 };
 
-/* ── 主组件 ── */
+// --- 主组件 ---
 
 const OrgTreeDemo: React.FC = () => {
   const [tree, setTree] = useState<OrgNode[]>(() =>
@@ -172,14 +172,14 @@ const OrgTreeDemo: React.FC = () => {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addType, setAddType] = useState<OrgNodeType>('department');
 
-  // contextNode 用于右键菜单和编辑/添加弹窗的目标节点
+  // 右键菜单和编辑/添加弹窗的目标节点
   const [contextNode, setContextNode] = useState<OrgNode | null>(null);
 
   const [editForm] = Form.useForm();
   const [addForm] = Form.useForm();
   const treeRef = useRef<HTMLDivElement>(null);
 
-  /* ── 派生数据 ── */
+  // --- 派生数据 ---
 
   const selectedNode = useMemo(
     () => (selectedId ? findInForest(tree, selectedId) : null),
@@ -203,7 +203,7 @@ const OrgTreeDemo: React.FC = () => {
     return new Set([...expanded, ...matchedIds]);
   }, [expanded, keyword, matchedIds]);
 
-  /* ── 展开/折叠（含懒加载） ── */
+  // --- 展开/折叠（含懒加载） ---
 
   const handleToggle = useCallback(async (id: string) => {
     const node = findInForest(tree, id);
@@ -242,7 +242,7 @@ const OrgTreeDemo: React.FC = () => {
     setExpanded(new Set());
   }, []);
 
-  /* ── 右键菜单（修复：每个节点独立触发，不再只包裹根节点） ── */
+  // --- 右键菜单 ---
 
   const handleContextMenu = useCallback((e: React.MouseEvent, node: OrgNode) => {
     e.preventDefault();
@@ -251,7 +251,7 @@ const OrgTreeDemo: React.FC = () => {
     setSelectedId(node.id);
   }, []);
 
-  /** 构建右键菜单项（基于传入的 node，而非 contextNode state） */
+  // 构建右键菜单项，基于传入的 node 而非 contextNode state
   const buildContextMenuItems = useCallback((node: OrgNode) => {
     const items: any[] = [];
 
@@ -331,7 +331,7 @@ const OrgTreeDemo: React.FC = () => {
     return items;
   }, [editForm, addForm]);
 
-  /* ── 编辑保存 ── */
+  // --- 编辑保存 ---
 
   const handleEditSave = useCallback(() => {
     editForm.validateFields().then(values => {
@@ -347,7 +347,7 @@ const OrgTreeDemo: React.FC = () => {
     });
   }, [editForm, contextNode]);
 
-  /* ── 添加节点 ── */
+  // --- 添加节点 ---
 
   const handleAddSave = useCallback(() => {
     addForm.validateFields().then(values => {
@@ -371,7 +371,7 @@ const OrgTreeDemo: React.FC = () => {
     });
   }, [addForm, addType, contextNode]);
 
-  /* ── 统计 ── */
+  // --- 统计 ---
 
   const stats = useMemo(() => {
     let depts = 0;
@@ -389,7 +389,7 @@ const OrgTreeDemo: React.FC = () => {
     return { depts, teams, persons };
   }, [tree]);
 
-  /* ── 渲染：树节点（递归，每个节点独立包裹 Dropdown） ── */
+  // --- 渲染 ---
 
   const renderTreeNodes = useCallback((nodes: OrgNode[], depth: number) => {
     return nodes.map(node => {
@@ -425,7 +425,7 @@ const OrgTreeDemo: React.FC = () => {
   return (
     <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 64px)' }}>
 
-      {/* ── 左侧：组织架构树 ── */}
+      {/* 左侧：组织架构树 */}
       <div style={{ width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* 搜索 + 工具栏 */}
         <Card size="small">
@@ -476,7 +476,7 @@ const OrgTreeDemo: React.FC = () => {
         </Card>
       </div>
 
-      {/* ── 右侧：详情面板 ── */}
+      {/* 右侧：详情面板 */}
       <Card style={{ flex: 1 }} styles={{ body: { padding: 24 } }}>
         {selectedNode ? (
           <div>
@@ -619,7 +619,7 @@ const OrgTreeDemo: React.FC = () => {
         )}
       </Card>
 
-      {/* ── 编辑弹窗 ── */}
+      {/* 编辑弹窗 */}
       <Modal
         title="编辑节点"
         open={editModalOpen}
@@ -641,7 +641,7 @@ const OrgTreeDemo: React.FC = () => {
         </Form>
       </Modal>
 
-      {/* ── 添加弹窗 ── */}
+      {/* 添加弹窗 */}
       <Modal
         title={`添加${addType === 'person' ? '成员' : '子部门'}`}
         open={addModalOpen}

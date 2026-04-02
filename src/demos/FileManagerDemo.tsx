@@ -17,7 +17,7 @@ import {
 
 const { Text } = Typography;
 
-/* ── 类型 ── */
+// --- 类型 ---
 
 type ViewMode = 'grid' | 'list';
 type SortKey = 'name' | 'modifiedAt' | 'size';
@@ -27,13 +27,13 @@ interface Clipboard {
   mode: 'copy' | 'cut';
 }
 
-/* ── 模拟上传的随机文件名 ── */
+// 模拟上传的随机文件名
 const UPLOAD_FILE_NAMES = ['report.pdf', 'photo.jpg', 'data.csv', 'notes.md', 'archive.zip'];
 
-/* ── 主组件 ── */
+// --- 主组件 ---
 
 const FileManagerDemo: React.FC = () => {
-  /* ── State ── */
+  // --- State ---
   const [root, setRoot] = useState<FileNode>(() => cloneNode(MOCK_FILE_TREE));
   const [currentFolderId, setCurrentFolderId] = useState('root');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -51,7 +51,7 @@ const FileManagerDemo: React.FC = () => {
   const [renameForm] = Form.useForm();
   const [newFolderForm] = Form.useForm();
 
-  /* ── 派生数据 ── */
+  // --- 派生数据 ---
   const currentFolder = useMemo(
     () => findInTree(root, currentFolderId),
     [root, currentFolderId],
@@ -64,7 +64,7 @@ const FileManagerDemo: React.FC = () => {
 
   const selectedKeysArray = useMemo(() => [...selectedIds], [selectedIds]);
 
-  /** 当前文件夹内容：搜索过滤 + 排序（文件夹优先） */
+  // 当前文件夹内容：搜索过滤 + 排序（文件夹优先）
   const displayItems = useMemo(() => {
     let list = currentFolder?.children || [];
 
@@ -86,7 +86,7 @@ const FileManagerDemo: React.FC = () => {
   const folderCount = displayItems.filter(i => i.type === 'folder').length;
   const fileCount = displayItems.filter(i => i.type === 'file').length;
 
-  /* ── 导航 ── */
+  // --- 导航 ---
 
   const navigateTo = useCallback((folderId: string) => {
     setCurrentFolderId(folderId);
@@ -99,7 +99,7 @@ const FileManagerDemo: React.FC = () => {
     if (parent) navigateTo(parent.id);
   }, [root, currentFolderId, navigateTo]);
 
-  /* ── 打开文件/文件夹 ── */
+  // --- 打开文件/文件夹 ---
 
   const openItem = useCallback((item: FileNode) => {
     if (item.type === 'folder') {
@@ -119,7 +119,7 @@ const FileManagerDemo: React.FC = () => {
     });
   }, [navigateTo]);
 
-  /* ── 选择 ── */
+  // --- 选择 ---
 
   const toggleSelection = useCallback((id: string, isMultiSelect: boolean) => {
     setSelectedIds(prev => {
@@ -133,7 +133,7 @@ const FileManagerDemo: React.FC = () => {
     });
   }, []);
 
-  /* ── 新建文件夹 ── */
+  // --- 新建文件夹 ---
 
   const handleCreateFolder = useCallback(() => {
     newFolderForm.validateFields().then(values => {
@@ -155,7 +155,7 @@ const FileManagerDemo: React.FC = () => {
     });
   }, [newFolderForm, currentFolderId]);
 
-  /* ── 重命名 ── */
+  // --- 重命名 ---
 
   const handleRename = useCallback(() => {
     renameForm.validateFields().then(values => {
@@ -176,7 +176,7 @@ const FileManagerDemo: React.FC = () => {
     setRenameModalOpen(true);
   }, [renameForm]);
 
-  /* ── 删除 ── */
+  // --- 删除 ---
 
   const handleDelete = useCallback((ids: string[]) => {
     Modal.confirm({
@@ -198,7 +198,7 @@ const FileManagerDemo: React.FC = () => {
     });
   }, []);
 
-  /* ── 复制 / 剪切 / 粘贴 ── */
+  // --- 复制/剪切/粘贴 ---
 
   const handleCopy = useCallback((ids: string[]) => {
     setClipboard({ ids, mode: 'copy' });
@@ -235,7 +235,7 @@ const FileManagerDemo: React.FC = () => {
     message.success('已粘贴');
   }, [clipboard, currentFolderId]);
 
-  /* ── 模拟上传 ── */
+  // --- 模拟上传 ---
 
   const handleUpload = useCallback(() => {
     const fileName = UPLOAD_FILE_NAMES[Math.floor(Math.random() * UPLOAD_FILE_NAMES.length)];
@@ -254,7 +254,7 @@ const FileManagerDemo: React.FC = () => {
     message.success(`已上传 ${fileName}`);
   }, [currentFolderId]);
 
-  /* ── 右键菜单 ── */
+  // --- 右键菜单 ---
 
   const buildContextMenu = useCallback((node?: FileNode): any[] => {
     // 文件/文件夹上的右键菜单
@@ -318,7 +318,7 @@ const FileManagerDemo: React.FC = () => {
     ];
   }, [openItem, openRenameModal, handleCopy, handleCut, handleDelete, handleUpload, handlePaste, clipboard, newFolderForm]);
 
-  /* ── 列表视图的列定义 ── */
+  // --- 列表视图的列定义 ---
 
   const listColumns = useMemo(() => [
     {
@@ -359,7 +359,7 @@ const FileManagerDemo: React.FC = () => {
     },
   ], [openItem]);
 
-  /* ── 渲染 ── */
+  // --- 渲染 ---
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

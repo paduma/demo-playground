@@ -1,17 +1,14 @@
-/**
- * 通用树形结构操作工具函数
- *
- * 泛型约束：节点必须有 id 和可选的 children 字段。
- * 所有函数都是纯函数，不修改原始数据。
- */
+// 通用树形结构操作工具函数
+// 泛型约束：节点必须有 id 和可选的 children 字段
+// 所有函数都是纯函数，不修改原始数据
 
-/** 树节点基础约束 */
+// 树节点基础约束
 export interface TreeNodeBase {
   id: string;
   children?: this[];
 }
 
-/** 深拷贝树节点 */
+// 深拷贝树节点
 export function cloneNode<T extends TreeNodeBase>(node: T): T {
   return {
     ...node,
@@ -19,7 +16,7 @@ export function cloneNode<T extends TreeNodeBase>(node: T): T {
   };
 }
 
-/** 在树中查找节点（单根） */
+// 在树中查找节点（单根）
 export function findInTree<T extends TreeNodeBase>(root: T, id: string): T | null {
   if (root.id === id) return root;
   for (const child of (root.children || []) as T[]) {
@@ -29,7 +26,7 @@ export function findInTree<T extends TreeNodeBase>(root: T, id: string): T | nul
   return null;
 }
 
-/** 在树中查找节点（多根） */
+// 在树中查找节点（多根）
 export function findInForest<T extends TreeNodeBase>(nodes: T[], id: string): T | null {
   for (const node of nodes) {
     if (node.id === id) return node;
@@ -41,7 +38,7 @@ export function findInForest<T extends TreeNodeBase>(nodes: T[], id: string): T 
   return null;
 }
 
-/** 在树中查找父节点（单根） */
+// 在树中查找父节点（单根）
 export function findParentInTree<T extends TreeNodeBase>(root: T, id: string): T | null {
   if ((root.children as T[] | undefined)?.some(c => c.id === id)) return root;
   for (const child of (root.children || []) as T[]) {
@@ -51,7 +48,7 @@ export function findParentInTree<T extends TreeNodeBase>(root: T, id: string): T
   return null;
 }
 
-/** 在树中查找父节点（多根） */
+// 在树中查找父节点（多根）
 export function findParentInForest<T extends TreeNodeBase>(nodes: T[], id: string): T | null {
   for (const node of nodes) {
     if ((node.children as T[] | undefined)?.some(c => c.id === id)) return node;
@@ -63,7 +60,7 @@ export function findParentInForest<T extends TreeNodeBase>(nodes: T[], id: strin
   return null;
 }
 
-/** 获取从根到目标节点的路径（单根） */
+// 获取从根到目标节点的路径（单根）
 export function getPathInTree<T extends TreeNodeBase>(root: T, id: string): T[] {
   if (root.id === id) return [root];
   for (const child of (root.children || []) as T[]) {
@@ -73,7 +70,7 @@ export function getPathInTree<T extends TreeNodeBase>(root: T, id: string): T[] 
   return [];
 }
 
-/** 收集所有节点 id（多根） */
+// 收集所有节点 id（多根）
 export function collectAllIds<T extends TreeNodeBase>(nodes: T[]): string[] {
   const ids: string[] = [];
   const walk = (list: T[]) => {
@@ -86,10 +83,8 @@ export function collectAllIds<T extends TreeNodeBase>(nodes: T[]): string[] {
   return ids;
 }
 
-/**
- * 不可变更新：对目标节点执行 updater，只拷贝修改路径（多根）
- * 未修改的子树保持原引用。
- */
+// 不可变更新：对目标节点执行 updater，只拷贝修改路径（多根）
+// 未修改的子树保持原引用
 export function updateNodeInForest<T extends TreeNodeBase>(
   nodes: T[],
   targetId: string,
@@ -113,24 +108,18 @@ export function updateNodeInForest<T extends TreeNodeBase>(
   return changed ? result : nodes;
 }
 
-/**
- * 不可变删除节点（单根）
- * 返回新的根节点，未修改的子树保持原引用。
- */
+// 不可变删除节点（单根），未修改的子树保持原引用
 export function removeFromTree<T extends TreeNodeBase>(root: T, id: string): T {
   if (!root.children) return root;
   const filtered = (root.children as T[]).filter(c => c.id !== id);
   const mapped = filtered.map(c => removeFromTree(c, id));
-  // 只在确实变化时创建新引用
   if (mapped.length === root.children.length && mapped.every((c, i) => c === root.children![i])) {
     return root;
   }
   return { ...root, children: mapped } as T;
 }
 
-/**
- * 不可变删除节点（多根）
- */
+// 不可变删除节点（多根）
 export function removeFromForest<T extends TreeNodeBase>(nodes: T[], id: string): T[] {
   let changed = false;
   const result = nodes
@@ -150,10 +139,7 @@ export function removeFromForest<T extends TreeNodeBase>(nodes: T[], id: string)
   return changed ? result : nodes;
 }
 
-/**
- * 搜索匹配的节点及其祖先路径（多根）
- * matcher 返回 true 表示该节点匹配。
- */
+// 搜索匹配的节点及其祖先路径（多根），matcher 返回 true 表示匹配
 export function searchMatchedIds<T extends TreeNodeBase>(
   nodes: T[],
   matcher: (node: T) => boolean,
