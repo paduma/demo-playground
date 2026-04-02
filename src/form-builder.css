@@ -1,0 +1,14 @@
+/* 表单设计器 - 预览区字段 hover 操作按钮 */
+.field-wrapper:hover .field-actions,
+.field-wrapper .field-actions:has(:focus) {
+  display: flex !important;
+}
+.field-wrapper:hover {
+  background: rgba(22, 119, 255, 0.01);
+  border-color: #d9d9d9 !important;
+}
+/* 组件面板项 hover */
+.component-item:hover {
+  border-color: #1677ff !important;
+  color: #1677ff;
+}
