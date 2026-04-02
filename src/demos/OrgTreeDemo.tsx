@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   Card, Input, Button, Space, Typography, Tag, Tooltip, Dropdown, Modal,
-  Form, Select, Spin, Empty, message, Badge,
+  Form, Select, Empty, message, Badge,
 } from 'antd';
 import {
   SearchOutlined, PlusOutlined, ExpandAltOutlined, ShrinkOutlined,
@@ -15,70 +15,99 @@ import { MOCK_ORG_TREE, fetchChildren } from './org-tree/mock-data';
 
 const { Text } = Typography;
 
-/* ── 工具函数：深拷贝树 ── */
-function cloneTree(nodes: OrgNode[]): OrgNode[] {
-  return nodes.map(n => ({ ...n, children: n.children ? cloneTree(n.children) : undefined }));
-}
+/* ── 不可变树操作工具函数 ── */
 
-/* ── 工具函数：在树中查找节点 ── */
+/** 在树中查找节点 */
 function findNode(nodes: OrgNode[], id: string): OrgNode | null {
-  for (const n of nodes) {
-    if (n.id === id) return n;
-    if (n.children) {
-      const found = findNode(n.children, id);
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    if (node.children) {
+      const found = findNode(node.children, id);
       if (found) return found;
     }
   }
   return null;
 }
 
-/* ── 工具函数：在树中查找父节点 ── */
+/** 在树中查找父节点 */
 function findParent(nodes: OrgNode[], id: string): OrgNode | null {
-  for (const n of nodes) {
-    if (n.children?.some(c => c.id === id)) return n;
-    if (n.children) {
-      const found = findParent(n.children, id);
+  for (const node of nodes) {
+    if (node.children?.some(c => c.id === id)) return node;
+    if (node.children) {
+      const found = findParent(node.children, id);
       if (found) return found;
     }
   }
   return null;
 }
 
-/* ── 工具函数：收集所有节点 id ── */
+/** 收集所有节点 id */
 function collectIds(nodes: OrgNode[]): string[] {
   const ids: string[] = [];
   const walk = (list: OrgNode[]) => {
-    for (const n of list) {
-      ids.push(n.id);
-      if (n.children) walk(n.children);
+    for (const node of list) {
+      ids.push(node.id);
+      if (node.children) walk(node.children);
     }
   };
   walk(nodes);
   return ids;
 }
 
-/* ── 工具函数：删除节点 ── */
-function removeNode(nodes: OrgNode[], id: string): OrgNode[] {
-  return nodes.filter(n => n.id !== id).map(n => ({
-    ...n,
-    children: n.children ? removeNode(n.children, id) : undefined,
-  }));
+/** 不可变更新：对目标节点执行 updater，只拷贝修改路径 */
+function updateNode(
+  nodes: OrgNode[],
+  targetId: string,
+  updater: (node: OrgNode) => OrgNode,
+): OrgNode[] {
+  return nodes.map(node => {
+    if (node.id === targetId) return updater(node);
+    if (node.children) {
+      const updatedChildren = updateNode(node.children, targetId, updater);
+      // 只在子树确实变化时创建新引用
+      if (updatedChildren !== node.children) {
+        return { ...node, children: updatedChildren };
+      }
+    }
+    return node;
+  });
 }
 
-/* ── 工具函数：搜索匹配的节点及其祖先路径 ── */
+/** 不可变删除节点 */
+function removeNode(nodes: OrgNode[], id: string): OrgNode[] {
+  let changed = false;
+  const result = nodes
+    .filter(node => {
+      if (node.id === id) { changed = true; return false; }
+      return true;
+    })
+    .map(node => {
+      if (!node.children) return node;
+      const updatedChildren = removeNode(node.children, id);
+      if (updatedChildren !== node.children) {
+        changed = true;
+        return { ...node, children: updatedChildren };
+      }
+      return node;
+    });
+  return changed ? result : nodes;
+}
+
+/** 搜索匹配的节点及其祖先路径 */
 function searchMatchIds(nodes: OrgNode[], keyword: string): Set<string> {
   const matched = new Set<string>();
   const walk = (list: OrgNode[], ancestors: string[]): boolean => {
     let anyMatch = false;
-    for (const n of list) {
-      const selfMatch = n.name.toLowerCase().includes(keyword) ||
-        (n.title && n.title.toLowerCase().includes(keyword));
+    for (const node of list) {
+      const selfMatch =
+        node.name.toLowerCase().includes(keyword) ||
+        (node.title != null && node.title.toLowerCase().includes(keyword));
       let childMatch = false;
-      if (n.children) {
-        childMatch = walk(n.children, [...ancestors, n.id]);
+      if (node.children) {
+        childMatch = walk(node.children, [...ancestors, node.id]);
       }
       if (selfMatch || childMatch) {
-        matched.add(n.id);
+        matched.add(node.id);
         ancestors.forEach(a => matched.add(a));
         anyMatch = true;
       }
@@ -90,6 +119,7 @@ function searchMatchIds(nodes: OrgNode[], keyword: string): Set<string> {
 }
 
 /* ── 单个树节点组件 ── */
+
 interface TreeNodeProps {
   node: OrgNode;
   depth: number;
@@ -110,14 +140,14 @@ const TreeNodeItem: React.FC<TreeNodeProps> = ({
   const isExpanded = expanded.has(node.id);
   const isSelected = selectedId === node.id;
   const isLoading = loadingIds.has(node.id);
-  const hasKids = (node.children && node.children.length > 0) || node.hasChildren;
+  const hasChildren = (node.children && node.children.length > 0) || node.hasChildren;
   const isSearching = searchKeyword.length > 0;
   const isMatched = matchedIds.has(node.id);
 
   // 搜索时隐藏不匹配的节点
   if (isSearching && !isMatched) return null;
 
-  /* 高亮搜索关键词 */
+  /** 高亮搜索关键词 */
   const highlightName = (text: string) => {
     if (!searchKeyword) return text;
     const idx = text.toLowerCase().indexOf(searchKeyword);
@@ -138,7 +168,7 @@ const TreeNodeItem: React.FC<TreeNodeProps> = ({
       <div
         onClick={() => onSelect(node.id)}
         onContextMenu={e => onContextMenu(e, node)}
-        onDoubleClick={() => hasKids && onToggle(node.id)}
+        onDoubleClick={() => hasChildren && onToggle(node.id)}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -152,18 +182,20 @@ const TreeNodeItem: React.FC<TreeNodeProps> = ({
           transition: 'all 0.15s',
           fontSize: 13,
         }}
-        onMouseEnter={e => { if (!isSelected) (e.currentTarget.style.background = '#fafafa'); }}
-        onMouseLeave={e => { if (!isSelected) (e.currentTarget.style.background = ''); }}
+        onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#fafafa'; }}
+        onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = ''; }}
       >
         {/* 展开/折叠箭头 */}
         <span
           style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0 }}
-          onClick={e => { e.stopPropagation(); if (hasKids) onToggle(node.id); }}
+          onClick={e => { e.stopPropagation(); if (hasChildren) onToggle(node.id); }}
         >
           {isLoading ? (
             <LoadingOutlined style={{ fontSize: 12, color: '#1677ff' }} />
-          ) : hasKids ? (
-            isExpanded ? <DownOutlined style={{ fontSize: 10, color: '#999' }} /> : <RightOutlined style={{ fontSize: 10, color: '#999' }} />
+          ) : hasChildren ? (
+            isExpanded
+              ? <DownOutlined style={{ fontSize: 10, color: '#999' }} />
+              : <RightOutlined style={{ fontSize: 10, color: '#999' }} />
           ) : null}
         </span>
 
@@ -171,13 +203,19 @@ const TreeNodeItem: React.FC<TreeNodeProps> = ({
         <span style={{ fontSize: 14, flexShrink: 0 }}>{NODE_ICONS[node.type]}</span>
 
         {/* 名称 */}
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: node.type === 'company' ? 600 : 400 }}>
+        <span style={{
+          flex: 1, overflow: 'hidden', textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap', fontWeight: node.type === 'company' ? 600 : 400,
+        }}>
           {highlightName(node.name)}
         </span>
 
         {/* 人数标签 */}
         {node.memberCount !== undefined && (
-          <Tag style={{ fontSize: 11, lineHeight: '18px', padding: '0 4px', margin: 0 }} color={NODE_COLORS[node.type]}>
+          <Tag
+            style={{ fontSize: 11, lineHeight: '18px', padding: '0 4px', margin: 0 }}
+            color={NODE_COLORS[node.type]}
+          >
             {node.memberCount}人
           </Tag>
         )}
@@ -188,8 +226,8 @@ const TreeNodeItem: React.FC<TreeNodeProps> = ({
         )}
       </div>
 
-      {/* 子节点 */}
-      {isExpanded && node.children && node.children.map(child => (
+      {/* 递归渲染子节点 */}
+      {isExpanded && node.children?.map(child => (
         <TreeNodeItem
           key={child.id}
           node={child}
@@ -208,26 +246,51 @@ const TreeNodeItem: React.FC<TreeNodeProps> = ({
   );
 };
 
+/* ── 节点类型中文映射 ── */
+const NODE_TYPE_LABELS: Record<OrgNodeType, string> = {
+  company: '公司',
+  department: '部门',
+  team: '小组',
+  person: '人员',
+};
+
 /* ── 主组件 ── */
+
 const OrgTreeDemo: React.FC = () => {
-  const [tree, setTree] = useState<OrgNode[]>(() => cloneTree(MOCK_ORG_TREE));
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['root', 'dept-tech']));
+  const [tree, setTree] = useState<OrgNode[]>(() =>
+    JSON.parse(JSON.stringify(MOCK_ORG_TREE)),
+  );
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(['root', 'dept-tech']),
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
+
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addType, setAddType] = useState<OrgNodeType>('department');
+
+  // contextNode 用于右键菜单和编辑/添加弹窗的目标节点
   const [contextNode, setContextNode] = useState<OrgNode | null>(null);
 
   const [editForm] = Form.useForm();
   const [addForm] = Form.useForm();
   const treeRef = useRef<HTMLDivElement>(null);
 
-  const selectedNode = useMemo(() => selectedId ? findNode(tree, selectedId) : null, [tree, selectedId]);
+  /* ── 派生数据 ── */
+
+  const selectedNode = useMemo(
+    () => (selectedId ? findNode(tree, selectedId) : null),
+    [tree, selectedId],
+  );
 
   const keyword = searchKeyword.trim().toLowerCase();
-  const matchedIds = useMemo(() => keyword ? searchMatchIds(tree, keyword) : new Set<string>(), [tree, keyword]);
+
+  const matchedIds = useMemo(
+    () => (keyword ? searchMatchIds(tree, keyword) : new Set<string>()),
+    [tree, keyword],
+  );
 
   // 搜索时自动展开匹配节点
   const effectiveExpanded = useMemo(() => {
@@ -236,36 +299,36 @@ const OrgTreeDemo: React.FC = () => {
   }, [expanded, keyword, matchedIds]);
 
   /* ── 展开/折叠（含懒加载） ── */
+
   const handleToggle = useCallback(async (id: string) => {
     const node = findNode(tree, id);
     if (!node) return;
 
-    // 懒加载
+    // 懒加载：有子节点标记但尚未加载
     if (node.hasChildren && !node.children) {
       setLoadingIds(prev => new Set([...prev, id]));
       const children = await fetchChildren(id);
-      setTree(prev => {
-        const next = cloneTree(prev);
-        const target = findNode(next, id);
-        if (target) {
-          target.children = children;
-          target.hasChildren = false;
-        }
+      setTree(prev =>
+        updateNode(prev, id, n => ({ ...n, children, hasChildren: false })),
+      );
+      setLoadingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
         return next;
       });
-      setLoadingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
       setExpanded(prev => new Set([...prev, id]));
       return;
     }
 
+    // 普通展开/折叠
     setExpanded(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, [tree]);
 
-  /* ── 全部展开/折叠 ── */
   const expandAll = useCallback(() => {
     setExpanded(new Set(collectIds(tree)));
   }, [tree]);
@@ -274,86 +337,113 @@ const OrgTreeDemo: React.FC = () => {
     setExpanded(new Set());
   }, []);
 
-  /* ── 右键菜单 ── */
+  /* ── 右键菜单（修复：每个节点独立触发，不再只包裹根节点） ── */
+
   const handleContextMenu = useCallback((e: React.MouseEvent, node: OrgNode) => {
     e.preventDefault();
+    e.stopPropagation();
     setContextNode(node);
     setSelectedId(node.id);
   }, []);
 
-  const contextMenuItems = useMemo(() => {
-    if (!contextNode) return [];
-    const items: { key: string; label: string; icon: React.ReactNode; danger?: boolean }[] = [];
-    if (contextNode.type !== 'person') {
+  /** 构建右键菜单项（基于传入的 node，而非 contextNode state） */
+  const buildContextMenuItems = useCallback((node: OrgNode) => {
+    const items: any[] = [];
+
+    if (node.type !== 'person') {
       items.push(
-        { key: 'add-dept', label: '添加子部门', icon: <FolderAddOutlined /> },
-        { key: 'add-person', label: '添加成员', icon: <UserAddOutlined /> },
+        {
+          key: 'add-dept',
+          label: '添加子部门',
+          icon: <FolderAddOutlined />,
+          onClick: () => {
+            setContextNode(node);
+            setAddType('department');
+            addForm.resetFields();
+            setAddModalOpen(true);
+          },
+        },
+        {
+          key: 'add-person',
+          label: '添加成员',
+          icon: <UserAddOutlined />,
+          onClick: () => {
+            setContextNode(node);
+            setAddType('person');
+            addForm.resetFields();
+            setAddModalOpen(true);
+          },
+        },
       );
     }
-    items.push(
-      { key: 'edit', label: '编辑', icon: <EditOutlined /> },
-      { key: 'copy', label: '复制名称', icon: <CopyOutlined /> },
-    );
-    if (contextNode.id !== 'root') {
-      items.push({ key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true });
-    }
-    return items;
-  }, [contextNode]);
 
-  const handleContextAction = useCallback((key: string) => {
-    if (!contextNode) return;
-    switch (key) {
-      case 'edit':
-        editForm.setFieldsValue({ name: contextNode.name, title: contextNode.title || '' });
-        setEditModalOpen(true);
-        break;
-      case 'add-dept':
-        setAddType('department');
-        addForm.resetFields();
-        setAddModalOpen(true);
-        break;
-      case 'add-person':
-        setAddType('person');
-        addForm.resetFields();
-        setAddModalOpen(true);
-        break;
-      case 'copy':
-        navigator.clipboard.writeText(contextNode.name).then(() => message.success('已复制'));
-        break;
-      case 'delete':
-        Modal.confirm({
-          title: '确认删除',
-          content: `确定删除「${contextNode.name}」${contextNode.children?.length ? '及其所有子节点' : ''}？`,
-          okText: '删除',
-          okType: 'danger',
-          onOk: () => {
-            setTree(prev => removeNode(cloneTree(prev), contextNode.id));
-            if (selectedId === contextNode.id) setSelectedId(null);
-            message.success('已删除');
+    items.push(
+      {
+        key: 'edit',
+        label: '编辑',
+        icon: <EditOutlined />,
+        onClick: () => {
+          setContextNode(node);
+          editForm.setFieldsValue({ name: node.name, title: node.title || '' });
+          setEditModalOpen(true);
+        },
+      },
+      {
+        key: 'copy',
+        label: '复制名称',
+        icon: <CopyOutlined />,
+        onClick: () => {
+          navigator.clipboard.writeText(node.name).then(() => message.success('已复制'));
+        },
+      },
+    );
+
+    if (node.id !== 'root') {
+      items.push(
+        { type: 'divider' },
+        {
+          key: 'delete',
+          label: '删除',
+          icon: <DeleteOutlined />,
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '确认删除',
+              content: `确定删除「${node.name}」${node.children?.length ? '及其所有子节点' : ''}？`,
+              okText: '删除',
+              okType: 'danger',
+              onOk: () => {
+                setTree(prev => removeNode(prev, node.id));
+                setSelectedId(prev => (prev === node.id ? null : prev));
+                message.success('已删除');
+              },
+            });
           },
-        });
-        break;
+        },
+      );
     }
-  }, [contextNode, editForm, addForm, selectedId]);
+
+    return items;
+  }, [editForm, addForm]);
 
   /* ── 编辑保存 ── */
+
   const handleEditSave = useCallback(() => {
     editForm.validateFields().then(values => {
-      setTree(prev => {
-        const next = cloneTree(prev);
-        const target = findNode(next, contextNode!.id);
-        if (target) {
-          target.name = values.name;
-          if (target.type === 'person') target.title = values.title;
-        }
-        return next;
-      });
+      setTree(prev =>
+        updateNode(prev, contextNode!.id, node => ({
+          ...node,
+          name: values.name,
+          title: node.type === 'person' ? values.title : node.title,
+        })),
+      );
       setEditModalOpen(false);
       message.success('已保存');
     });
   }, [editForm, contextNode]);
 
   /* ── 添加节点 ── */
+
   const handleAddSave = useCallback(() => {
     addForm.validateFields().then(values => {
       const newNode: OrgNode = {
@@ -363,15 +453,12 @@ const OrgTreeDemo: React.FC = () => {
         title: addType === 'person' ? values.title : undefined,
         memberCount: addType !== 'person' ? 0 : undefined,
       };
-      setTree(prev => {
-        const next = cloneTree(prev);
-        const parent = findNode(next, contextNode!.id);
-        if (parent) {
-          if (!parent.children) parent.children = [];
-          parent.children.push(newNode);
-        }
-        return next;
-      });
+      setTree(prev =>
+        updateNode(prev, contextNode!.id, parent => ({
+          ...parent,
+          children: [...(parent.children || []), newNode],
+        })),
+      );
       setExpanded(prev => new Set([...prev, contextNode!.id]));
       setAddModalOpen(false);
       setSelectedId(newNode.id);
@@ -380,19 +467,55 @@ const OrgTreeDemo: React.FC = () => {
   }, [addForm, addType, contextNode]);
 
   /* ── 统计 ── */
+
   const stats = useMemo(() => {
-    let depts = 0, teams = 0, persons = 0;
+    let depts = 0;
+    let teams = 0;
+    let persons = 0;
     const walk = (nodes: OrgNode[]) => {
-      for (const n of nodes) {
-        if (n.type === 'department') depts++;
-        else if (n.type === 'team') teams++;
-        else if (n.type === 'person') persons++;
-        if (n.children) walk(n.children);
+      for (const node of nodes) {
+        if (node.type === 'department') depts++;
+        else if (node.type === 'team') teams++;
+        else if (node.type === 'person') persons++;
+        if (node.children) walk(node.children);
       }
     };
     walk(tree);
     return { depts, teams, persons };
   }, [tree]);
+
+  /* ── 渲染：树节点（递归，每个节点独立包裹 Dropdown） ── */
+
+  const renderTreeNodes = useCallback((nodes: OrgNode[], depth: number) => {
+    return nodes.map(node => {
+      const isSearching = keyword.length > 0;
+      const isMatched = matchedIds.has(node.id);
+      if (isSearching && !isMatched) return null;
+
+      return (
+        <Dropdown
+          key={node.id}
+          menu={{ items: buildContextMenuItems(node) }}
+          trigger={['contextMenu']}
+        >
+          <div>
+            <TreeNodeItem
+              node={node}
+              depth={depth}
+              expanded={effectiveExpanded}
+              selectedId={selectedId}
+              searchKeyword={keyword}
+              matchedIds={matchedIds}
+              loadingIds={loadingIds}
+              onToggle={handleToggle}
+              onSelect={setSelectedId}
+              onContextMenu={handleContextMenu}
+            />
+          </div>
+        </Dropdown>
+      );
+    });
+  }, [keyword, matchedIds, buildContextMenuItems, effectiveExpanded, selectedId, loadingIds, handleToggle, handleContextMenu]);
 
   return (
     <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 64px)' }}>
@@ -437,33 +560,12 @@ const OrgTreeDemo: React.FC = () => {
             {tree.length === 0 ? (
               <Empty description="暂无组织数据" />
             ) : keyword && matchedIds.size === 0 ? (
-              <Empty description={`未找到「${searchKeyword}」相关结果`} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              <Empty
+                description={`未找到「${searchKeyword}」相关结果`}
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
             ) : (
-              tree.map(node => (
-                <Dropdown
-                  key={node.id}
-                  menu={{
-                    items: contextMenuItems.map(i => ({ ...i, onClick: () => handleContextAction(i.key) })),
-                  }}
-                  trigger={['contextMenu']}
-                  onOpenChange={open => { if (open) { setContextNode(node); setSelectedId(node.id); } }}
-                >
-                  <div>
-                    <TreeNodeItem
-                      node={node}
-                      depth={0}
-                      expanded={effectiveExpanded}
-                      selectedId={selectedId}
-                      searchKeyword={keyword}
-                      matchedIds={matchedIds}
-                      loadingIds={loadingIds}
-                      onToggle={handleToggle}
-                      onSelect={setSelectedId}
-                      onContextMenu={handleContextMenu}
-                    />
-                  </div>
-                </Dropdown>
-              ))
+              renderTreeNodes(tree, 0)
             )}
           </div>
         </Card>
@@ -473,6 +575,7 @@ const OrgTreeDemo: React.FC = () => {
       <Card style={{ flex: 1 }} styles={{ body: { padding: 24 } }}>
         {selectedNode ? (
           <div>
+            {/* 头部 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: 12,
@@ -487,7 +590,7 @@ const OrgTreeDemo: React.FC = () => {
                 <div style={{ fontSize: 18, fontWeight: 600 }}>{selectedNode.name}</div>
                 <Space size={4}>
                   <Tag color={NODE_COLORS[selectedNode.type]}>
-                    {selectedNode.type === 'company' ? '公司' : selectedNode.type === 'department' ? '部门' : selectedNode.type === 'team' ? '小组' : '人员'}
+                    {NODE_TYPE_LABELS[selectedNode.type]}
                   </Tag>
                   {selectedNode.title && <Text type="secondary">{selectedNode.title}</Text>}
                 </Space>
@@ -499,7 +602,10 @@ const OrgTreeDemo: React.FC = () => {
                     icon={<EditOutlined />}
                     onClick={() => {
                       setContextNode(selectedNode);
-                      editForm.setFieldsValue({ name: selectedNode.name, title: selectedNode.title || '' });
+                      editForm.setFieldsValue({
+                        name: selectedNode.name,
+                        title: selectedNode.title || '',
+                      });
                       setEditModalOpen(true);
                     }}
                   >
@@ -528,7 +634,10 @@ const OrgTreeDemo: React.FC = () => {
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>基本信息</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 13 }}>
                 <div><Text type="secondary">节点 ID：</Text>{selectedNode.id}</div>
-                <div><Text type="secondary">类型：</Text>{NODE_ICONS[selectedNode.type]} {selectedNode.type}</div>
+                <div>
+                  <Text type="secondary">类型：</Text>
+                  {NODE_ICONS[selectedNode.type]} {NODE_TYPE_LABELS[selectedNode.type]}
+                </div>
                 {selectedNode.memberCount !== undefined && (
                   <div><Text type="secondary">人数：</Text>{selectedNode.memberCount} 人</div>
                 )}
@@ -537,10 +646,7 @@ const OrgTreeDemo: React.FC = () => {
                 )}
                 <div>
                   <Text type="secondary">上级：</Text>
-                  {(() => {
-                    const parent = findParent(tree, selectedNode.id);
-                    return parent ? parent.name : '—';
-                  })()}
+                  {findParent(tree, selectedNode.id)?.name ?? '—'}
                 </div>
                 <div>
                   <Text type="secondary">下级数量：</Text>
@@ -565,13 +671,23 @@ const OrgTreeDemo: React.FC = () => {
                         padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
                         border: '1px solid #f0f0f0', transition: 'all 0.15s',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#1677ff'; e.currentTarget.style.background = '#e6f4ff'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#f0f0f0'; e.currentTarget.style.background = ''; }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = '#1677ff';
+                        e.currentTarget.style.background = '#e6f4ff';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = '#f0f0f0';
+                        e.currentTarget.style.background = '';
+                      }}
                     >
                       <span>{NODE_ICONS[child.type]}</span>
                       <span style={{ flex: 1, fontSize: 13 }}>{child.name}</span>
-                      {child.title && <Text type="secondary" style={{ fontSize: 12 }}>{child.title}</Text>}
-                      {child.memberCount !== undefined && <Tag style={{ margin: 0, fontSize: 11 }}>{child.memberCount}人</Tag>}
+                      {child.title && (
+                        <Text type="secondary" style={{ fontSize: 12 }}>{child.title}</Text>
+                      )}
+                      {child.memberCount !== undefined && (
+                        <Tag style={{ margin: 0, fontSize: 11 }}>{child.memberCount}人</Tag>
+                      )}
                     </div>
                   ))}
                 </div>
