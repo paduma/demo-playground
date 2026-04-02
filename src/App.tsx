@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
-import { Routes, Route, Link, Navigate } from 'react-router-dom';
-import { Layout, Menu } from 'antd';
+import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import { Layout, Menu, theme } from 'antd';
+import {
+  AuditOutlined, SafetyCertificateOutlined, TableOutlined,
+  ApartmentOutlined, FolderOutlined, BellOutlined,
+  DatabaseOutlined, HighlightOutlined, ColumnWidthOutlined,
+  KeyOutlined, AppstoreOutlined,
+} from '@ant-design/icons';
 import VirtualEditableTableDemo from './demos/VirtualEditableTableDemo';
 import TextHighlightDemo from './demos/TextHighlightDemo';
 import ResizableTableDemo from './demos/ResizableTableDemo';
@@ -16,37 +22,83 @@ import NotificationDemo from './demos/NotificationDemo';
 const { Sider, Content } = Layout;
 
 const menuItems = [
-  { key: 'approval-template', label: <Link to="/approval-template">审批模板设计器</Link> },
-  { key: 'rbac', label: <Link to="/rbac">权限管理可视化</Link> },
-  { key: 'configurable-table', label: <Link to="/configurable-table">可配置表格表头</Link> },
-  { key: 'org-tree', label: <Link to="/org-tree">树形组织架构</Link> },
-  { key: 'file-manager', label: <Link to="/file-manager">文件管理器</Link> },
-  { key: 'notification', label: <Link to="/notification">消息通知中心</Link> },
-  { key: 'virtual-table', label: <Link to="/virtual-table">虚拟滚动可编辑表格</Link> },
-  { key: 'text-highlight', label: <Link to="/text-highlight">多关键词文本高亮</Link> },
-  { key: 'resizable-table', label: <Link to="/resizable-table">可拖拽列宽表格</Link> },
-  { key: 'request', label: <Link to="/request">Token 自动刷新</Link> },
+  {
+    key: 'grp-product',
+    label: '产品形态',
+    type: 'group' as const,
+    children: [
+      { key: 'approval-template', icon: <AuditOutlined />, label: <Link to="/approval-template">审批模板设计器</Link> },
+      { key: 'rbac', icon: <SafetyCertificateOutlined />, label: <Link to="/rbac">权限管理</Link> },
+      { key: 'org-tree', icon: <ApartmentOutlined />, label: <Link to="/org-tree">组织架构</Link> },
+      { key: 'file-manager', icon: <FolderOutlined />, label: <Link to="/file-manager">文件管理器</Link> },
+      { key: 'notification', icon: <BellOutlined />, label: <Link to="/notification">消息通知</Link> },
+    ],
+  },
+  {
+    key: 'grp-engineering',
+    label: '工程难点',
+    type: 'group' as const,
+    children: [
+      { key: 'configurable-table', icon: <TableOutlined />, label: <Link to="/configurable-table">可配置表格</Link> },
+      { key: 'virtual-table', icon: <DatabaseOutlined />, label: <Link to="/virtual-table">虚拟滚动表格</Link> },
+      { key: 'text-highlight', icon: <HighlightOutlined />, label: <Link to="/text-highlight">文本高亮</Link> },
+      { key: 'resizable-table', icon: <ColumnWidthOutlined />, label: <Link to="/resizable-table">拖拽列宽</Link> },
+      { key: 'request', icon: <KeyOutlined />, label: <Link to="/request">Token 刷新</Link> },
+    ],
+  },
 ];
 
 const App: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const location = useLocation();
+  const { token: { colorBgContainer } } = theme.useToken();
+
+  // Derive selected key from current path
+  const selectedKey = location.pathname.replace('/', '') || 'approval-template';
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
-        width={240}
-        collapsedWidth={60}
+        width={220}
+        collapsedWidth={56}
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
-        style={{ background: '#fff' }}
+        style={{
+          background: colorBgContainer,
+          borderRight: '1px solid #f0f0f0',
+          overflow: 'auto',
+          height: '100vh',
+          position: 'sticky',
+          top: 0,
+          left: 0,
+        }}
+        theme="light"
       >
-        <h2 style={{ padding: '16px', textAlign: 'center', margin: 0, fontSize: collapsed ? 14 : 18, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-          {collapsed ? '🧰' : 'Toolkit Demo'}
-        </h2>
-        <Menu mode="inline" defaultSelectedKeys={['approval-template']} items={menuItems} />
+        <div style={{
+          height: 48,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderBottom: '1px solid #f0f0f0',
+          gap: 8,
+        }}>
+          <AppstoreOutlined style={{ fontSize: 18, color: '#1677ff' }} />
+          {!collapsed && <span style={{ fontSize: 15, fontWeight: 600, color: '#333' }}>Toolkit Demo</span>}
+        </div>
+        <Menu
+          mode="inline"
+          selectedKeys={[selectedKey]}
+          items={menuItems}
+          style={{ border: 'none', fontSize: 13 }}
+        />
       </Sider>
-      <Content style={{ padding: 24, background: '#f5f5f5' }}>
+      <Content style={{
+        padding: 20,
+        background: '#f5f5f5',
+        minHeight: '100vh',
+        overflow: 'auto',
+      }}>
         <Routes>
           <Route path="/approval-template" element={<ApprovalTemplateDemo />} />
           <Route path="/form-builder" element={<FormBuilderDemo />} />
