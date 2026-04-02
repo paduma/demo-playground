@@ -12,111 +12,12 @@ import {
 import type { OrgNode, OrgNodeType } from './org-tree/types';
 import { NODE_ICONS, NODE_COLORS } from './org-tree/types';
 import { MOCK_ORG_TREE, fetchChildren } from './org-tree/mock-data';
+import {
+  findInForest, findParentInForest, collectAllIds,
+  updateNodeInForest, removeFromForest, searchMatchedIds,
+} from '@/utils/tree';
 
 const { Text } = Typography;
-
-/* ── 不可变树操作工具函数 ── */
-
-/** 在树中查找节点 */
-function findNode(nodes: OrgNode[], id: string): OrgNode | null {
-  for (const node of nodes) {
-    if (node.id === id) return node;
-    if (node.children) {
-      const found = findNode(node.children, id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-/** 在树中查找父节点 */
-function findParent(nodes: OrgNode[], id: string): OrgNode | null {
-  for (const node of nodes) {
-    if (node.children?.some(c => c.id === id)) return node;
-    if (node.children) {
-      const found = findParent(node.children, id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-/** 收集所有节点 id */
-function collectIds(nodes: OrgNode[]): string[] {
-  const ids: string[] = [];
-  const walk = (list: OrgNode[]) => {
-    for (const node of list) {
-      ids.push(node.id);
-      if (node.children) walk(node.children);
-    }
-  };
-  walk(nodes);
-  return ids;
-}
-
-/** 不可变更新：对目标节点执行 updater，只拷贝修改路径 */
-function updateNode(
-  nodes: OrgNode[],
-  targetId: string,
-  updater: (node: OrgNode) => OrgNode,
-): OrgNode[] {
-  return nodes.map(node => {
-    if (node.id === targetId) return updater(node);
-    if (node.children) {
-      const updatedChildren = updateNode(node.children, targetId, updater);
-      // 只在子树确实变化时创建新引用
-      if (updatedChildren !== node.children) {
-        return { ...node, children: updatedChildren };
-      }
-    }
-    return node;
-  });
-}
-
-/** 不可变删除节点 */
-function removeNode(nodes: OrgNode[], id: string): OrgNode[] {
-  let changed = false;
-  const result = nodes
-    .filter(node => {
-      if (node.id === id) { changed = true; return false; }
-      return true;
-    })
-    .map(node => {
-      if (!node.children) return node;
-      const updatedChildren = removeNode(node.children, id);
-      if (updatedChildren !== node.children) {
-        changed = true;
-        return { ...node, children: updatedChildren };
-      }
-      return node;
-    });
-  return changed ? result : nodes;
-}
-
-/** 搜索匹配的节点及其祖先路径 */
-function searchMatchIds(nodes: OrgNode[], keyword: string): Set<string> {
-  const matched = new Set<string>();
-  const walk = (list: OrgNode[], ancestors: string[]): boolean => {
-    let anyMatch = false;
-    for (const node of list) {
-      const selfMatch =
-        node.name.toLowerCase().includes(keyword) ||
-        (node.title != null && node.title.toLowerCase().includes(keyword));
-      let childMatch = false;
-      if (node.children) {
-        childMatch = walk(node.children, [...ancestors, node.id]);
-      }
-      if (selfMatch || childMatch) {
-        matched.add(node.id);
-        ancestors.forEach(a => matched.add(a));
-        anyMatch = true;
-      }
-    }
-    return anyMatch;
-  };
-  walk(nodes, []);
-  return matched;
-}
 
 /* ── 单个树节点组件 ── */
 
@@ -281,14 +182,18 @@ const OrgTreeDemo: React.FC = () => {
   /* ── 派生数据 ── */
 
   const selectedNode = useMemo(
-    () => (selectedId ? findNode(tree, selectedId) : null),
+    () => (selectedId ? findInForest(tree, selectedId) : null),
     [tree, selectedId],
   );
 
   const keyword = searchKeyword.trim().toLowerCase();
 
   const matchedIds = useMemo(
-    () => (keyword ? searchMatchIds(tree, keyword) : new Set<string>()),
+    () => (keyword
+      ? searchMatchedIds<OrgNode>(tree, node =>
+        node.name.toLowerCase().includes(keyword) ||
+        (node.title != null && node.title.toLowerCase().includes(keyword)))
+      : new Set<string>()),
     [tree, keyword],
   );
 
@@ -301,7 +206,7 @@ const OrgTreeDemo: React.FC = () => {
   /* ── 展开/折叠（含懒加载） ── */
 
   const handleToggle = useCallback(async (id: string) => {
-    const node = findNode(tree, id);
+    const node = findInForest(tree, id);
     if (!node) return;
 
     // 懒加载：有子节点标记但尚未加载
@@ -309,7 +214,7 @@ const OrgTreeDemo: React.FC = () => {
       setLoadingIds(prev => new Set([...prev, id]));
       const children = await fetchChildren(id);
       setTree(prev =>
-        updateNode(prev, id, n => ({ ...n, children, hasChildren: false })),
+        updateNodeInForest<OrgNode>(prev, id, n => ({ ...n, children, hasChildren: false })),
       );
       setLoadingIds(prev => {
         const next = new Set(prev);
@@ -330,7 +235,7 @@ const OrgTreeDemo: React.FC = () => {
   }, [tree]);
 
   const expandAll = useCallback(() => {
-    setExpanded(new Set(collectIds(tree)));
+    setExpanded(new Set(collectAllIds(tree)));
   }, [tree]);
 
   const collapseAll = useCallback(() => {
@@ -413,7 +318,7 @@ const OrgTreeDemo: React.FC = () => {
               okText: '删除',
               okType: 'danger',
               onOk: () => {
-                setTree(prev => removeNode(prev, node.id));
+                setTree(prev => removeFromForest(prev, node.id));
                 setSelectedId(prev => (prev === node.id ? null : prev));
                 message.success('已删除');
               },
@@ -431,7 +336,7 @@ const OrgTreeDemo: React.FC = () => {
   const handleEditSave = useCallback(() => {
     editForm.validateFields().then(values => {
       setTree(prev =>
-        updateNode(prev, contextNode!.id, node => ({
+        updateNodeInForest<OrgNode>(prev, contextNode!.id, node => ({
           ...node,
           name: values.name,
           title: node.type === 'person' ? values.title : node.title,
@@ -454,7 +359,7 @@ const OrgTreeDemo: React.FC = () => {
         memberCount: addType !== 'person' ? 0 : undefined,
       };
       setTree(prev =>
-        updateNode(prev, contextNode!.id, parent => ({
+        updateNodeInForest<OrgNode>(prev, contextNode!.id, parent => ({
           ...parent,
           children: [...(parent.children || []), newNode],
         })),
@@ -646,7 +551,7 @@ const OrgTreeDemo: React.FC = () => {
                 )}
                 <div>
                   <Text type="secondary">上级：</Text>
-                  {findParent(tree, selectedNode.id)?.name ?? '—'}
+                  {findParentInForest(tree, selectedNode.id)?.name ?? '—'}
                 </div>
                 <div>
                   <Text type="secondary">下级数量：</Text>

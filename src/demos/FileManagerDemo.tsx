@@ -11,50 +11,11 @@ import {
 import type { FileNode } from './file-manager/types';
 import { getCategory, CATEGORY_ICONS, FOLDER_ICON, formatSize, genFileId } from './file-manager/types';
 import { MOCK_FILE_TREE } from './file-manager/mock-data';
+import {
+  cloneNode, findInTree, findParentInTree, removeFromTree, getPathInTree,
+} from '@/utils/tree';
 
 const { Text } = Typography;
-
-/* ── 树操作工具函数 ── */
-
-function cloneNode(node: FileNode): FileNode {
-  return { ...node, children: node.children?.map(cloneNode) };
-}
-
-function findNode(root: FileNode, id: string): FileNode | null {
-  if (root.id === id) return root;
-  for (const child of root.children || []) {
-    const found = findNode(child, id);
-    if (found) return found;
-  }
-  return null;
-}
-
-function findParent(root: FileNode, id: string): FileNode | null {
-  if (root.children?.some(c => c.id === id)) return root;
-  for (const child of root.children || []) {
-    const found = findParent(child, id);
-    if (found) return found;
-  }
-  return null;
-}
-
-function removeNode(root: FileNode, id: string): FileNode {
-  return {
-    ...root,
-    children: root.children
-      ?.filter(c => c.id !== id)
-      .map(c => removeNode(c, id)),
-  };
-}
-
-function getPath(root: FileNode, id: string): FileNode[] {
-  if (root.id === id) return [root];
-  for (const child of root.children || []) {
-    const path = getPath(child, id);
-    if (path.length) return [root, ...path];
-  }
-  return [];
-}
 
 /* ── 类型 ── */
 
@@ -92,12 +53,12 @@ const FileManagerDemo: React.FC = () => {
 
   /* ── 派生数据 ── */
   const currentFolder = useMemo(
-    () => findNode(root, currentFolderId),
+    () => findInTree(root, currentFolderId),
     [root, currentFolderId],
   );
 
   const breadcrumbs = useMemo(
-    () => getPath(root, currentFolderId),
+    () => getPathInTree(root, currentFolderId),
     [root, currentFolderId],
   );
 
@@ -134,7 +95,7 @@ const FileManagerDemo: React.FC = () => {
   }, []);
 
   const navigateUp = useCallback(() => {
-    const parent = findParent(root, currentFolderId);
+    const parent = findParentInTree(root, currentFolderId);
     if (parent) navigateTo(parent.id);
   }, [root, currentFolderId, navigateTo]);
 
@@ -185,7 +146,7 @@ const FileManagerDemo: React.FC = () => {
       };
       setRoot(prev => {
         const next = cloneNode(prev);
-        findNode(next, currentFolderId)?.children?.push(newFolder);
+        findInTree(next, currentFolderId)?.children?.push(newFolder);
         return next;
       });
       setNewFolderModalOpen(false);
@@ -200,7 +161,7 @@ const FileManagerDemo: React.FC = () => {
     renameForm.validateFields().then(values => {
       setRoot(prev => {
         const next = cloneNode(prev);
-        const target = findNode(next, renameTarget!.id);
+        const target = findInTree(next, renameTarget!.id);
         if (target) target.name = values.name;
         return next;
       });
@@ -227,7 +188,7 @@ const FileManagerDemo: React.FC = () => {
         setRoot(prev => {
           let next = cloneNode(prev);
           for (const id of ids) {
-            next = removeNode(next, id);
+            next = removeFromTree(next, id);
           }
           return next;
         });
@@ -255,16 +216,16 @@ const FileManagerDemo: React.FC = () => {
     setRoot(prev => {
       let next = cloneNode(prev);
       for (const id of clipboard.ids) {
-        const source = findNode(next, id);
+        const source = findInTree(next, id);
         if (!source) continue;
 
         const cloned = cloneNode(source);
         if (clipboard.mode === 'copy') {
           cloned.id = genFileId();
         } else {
-          next = removeNode(next, id);
+          next = removeFromTree(next, id);
         }
-        findNode(next, currentFolderId)?.children?.push(cloned);
+        findInTree(next, currentFolderId)?.children?.push(cloned);
       }
       return next;
     });
@@ -287,7 +248,7 @@ const FileManagerDemo: React.FC = () => {
     };
     setRoot(prev => {
       const next = cloneNode(prev);
-      findNode(next, currentFolderId)?.children?.push(newFile);
+      findInTree(next, currentFolderId)?.children?.push(newFile);
       return next;
     });
     message.success(`已上传 ${fileName}`);
