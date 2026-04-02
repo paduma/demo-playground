@@ -5,7 +5,7 @@ import {
   AuditOutlined, SafetyCertificateOutlined, TableOutlined,
   ApartmentOutlined, FolderOutlined, BellOutlined,
   DatabaseOutlined, HighlightOutlined, ColumnWidthOutlined,
-  KeyOutlined, AppstoreOutlined,
+  KeyOutlined, AppstoreOutlined, CloudDownloadOutlined,
 } from '@ant-design/icons';
 import VirtualEditableTableDemo from './demos/VirtualEditableTableDemo';
 import TextHighlightDemo from './demos/TextHighlightDemo';
@@ -18,6 +18,7 @@ import OrgTreeDemo from './demos/OrgTreeDemo';
 import RbacDemo from './demos/RbacDemo';
 import FileManagerDemo from './demos/FileManagerDemo';
 import NotificationDemo from './demos/NotificationDemo';
+import BatchDownloadDemo from './demos/BatchDownloadDemo';
 
 const { Sider, Content } = Layout;
 
@@ -44,6 +45,7 @@ const menuItems = [
       { key: 'text-highlight', icon: <HighlightOutlined />, label: <Link to="/text-highlight">文本高亮</Link> },
       { key: 'resizable-table', icon: <ColumnWidthOutlined />, label: <Link to="/resizable-table">拖拽列宽</Link> },
       { key: 'request', icon: <KeyOutlined />, label: <Link to="/request">Token 刷新</Link> },
+      { key: 'batch-download', icon: <CloudDownloadOutlined />, label: <Link to="/batch-download">批量下载</Link> },
     ],
   },
 ];
@@ -111,6 +113,7 @@ const App: React.FC = () => {
           <Route path="/text-highlight" element={<TextHighlightDemo />} />
           <Route path="/resizable-table" element={<ResizableTableDemo />} />
           <Route path="/request" element={<RequestDemo />} />
+          <Route path="/batch-download" element={<BatchDownloadDemo />} />
           <Route path="*" element={<Navigate to="/approval-template" replace />} />
         </Routes>
       </Content>
