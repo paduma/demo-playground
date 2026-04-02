@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 // --- 类型 ---
 
@@ -10,15 +10,15 @@ export interface DownloadTask {
   url: string;
   size: number;
   status: TaskStatus;
-  progress: number;       // 0-100
-  loaded: number;         // 已下载字节
+  progress: number;
+  loaded: number;
   error?: string;
   blob?: Blob;
 }
 
 export interface DownloadOptions {
-  concurrency?: number;   // 最大并发数，默认 3
-  retryCount?: number;    // 失败重试次数，默认 1
+  concurrency?: number;
+  retryCount?: number;
 }
 
 interface QueueItem {
@@ -30,21 +30,48 @@ interface QueueItem {
 // --- Hook ---
 
 export function useConcurrentDownload(options: DownloadOptions = {}) {
-  const { concurrency = 3, retryCount = 1 } = options;
-
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
   const [isRunning, setIsRunning] = useState(false);
 
-  // 用 ref 持有运行时状态，避免闭包陷阱
+  // 用 ref 持有运行时配置，避免闭包捕获旧值
+  const concurrencyRef = useRef(options.concurrency ?? 3);
+  const retryCountRef = useRef(options.retryCount ?? 1);
+
+  // options 变化时同步到 ref
+  useEffect(() => {
+    concurrencyRef.current = options.concurrency ?? 3;
+  }, [options.concurrency]);
+  useEffect(() => {
+    retryCountRef.current = options.retryCount ?? 1;
+  }, [options.retryCount]);
+
   const queueRef = useRef<QueueItem[]>([]);
   const activeCountRef = useRef(0);
   const controllersRef = useRef<Map<string, AbortController>>(new Map());
   const cancelledRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  // 组件卸载时标记，防止对已卸载组件 setState
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // 卸载时中断所有进行中的下载
+      controllersRef.current.forEach(c => c.abort());
+      controllersRef.current.clear();
+    };
+  }, []);
+
+  // 安全的 setState 包装
+  const safeSetTasks: typeof setTasks = useCallback(
+    (action) => { if (mountedRef.current) setTasks(action); },
+    [],
+  );
 
   // 更新单个任务状态
   const updateTask = useCallback((id: string, patch: Partial<DownloadTask>) => {
-    setTasks(prev => prev.map(t => (t.id === id ? { ...t, ...patch } : t)));
-  }, []);
+    safeSetTasks(prev => prev.map(t => (t.id === id ? { ...t, ...patch } : t)));
+  }, [safeSetTasks]);
 
   // 模拟单个文件下载（用 setTimeout 分段模拟进度）
   const downloadOne = useCallback((item: QueueItem): Promise<Blob> => {
@@ -52,26 +79,31 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
       const { task, controller } = item;
       const totalChunks = 10 + Math.floor(Math.random() * 10);
       const chunkSize = Math.ceil(task.size / totalChunks);
-      // 随机决定是否模拟失败（约 15% 概率）
       const willFail = Math.random() < 0.15;
       const failAtChunk = willFail ? Math.floor(totalChunks * 0.6) : -1;
       let currentChunk = 0;
       let loaded = 0;
+      let timerId: ReturnType<typeof setTimeout>;
+
+      // abort 时清理 timer
+      const onAbort = () => {
+        clearTimeout(timerId);
+        reject(new DOMException('Download cancelled', 'AbortError'));
+      };
+      controller.signal.addEventListener('abort', onAbort, { once: true });
 
       const tick = () => {
-        if (controller.signal.aborted) {
-          reject(new DOMException('Download cancelled', 'AbortError'));
-          return;
-        }
+        if (controller.signal.aborted) return;
 
         if (currentChunk >= totalChunks) {
-          // 下载完成，生成一个假 blob
+          controller.signal.removeEventListener('abort', onAbort);
           const blob = new Blob([`fake-content-of-${task.fileName}`], { type: 'application/octet-stream' });
           resolve(blob);
           return;
         }
 
         if (currentChunk === failAtChunk) {
+          controller.signal.removeEventListener('abort', onAbort);
           reject(new Error('Network error (simulated)'));
           return;
         }
@@ -79,31 +111,26 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
         currentChunk++;
         loaded = Math.min(loaded + chunkSize, task.size);
         const progress = Math.round((loaded / task.size) * 100);
-
         updateTask(task.id, { progress, loaded });
 
-        // 每个 chunk 间隔 80-200ms，模拟网络延迟
-        setTimeout(tick, 80 + Math.random() * 120);
+        timerId = setTimeout(tick, 80 + Math.random() * 120);
       };
 
-      // 启动前先延迟一小段，模拟连接建立
-      setTimeout(tick, 100 + Math.random() * 200);
+      timerId = setTimeout(tick, 100 + Math.random() * 200);
     });
   }, [updateTask]);
 
-  // 从队列中取下一个 pending 任务执行
+  // 从队列中取下一个 pending 任务执行（只拾取 pending，不拾取 error）
   const processNext = useCallback(() => {
     if (cancelledRef.current) return;
+    if (activeCountRef.current >= concurrencyRef.current) return;
 
-    const nextItem = queueRef.current.find(
-      item => item.task.status === 'pending' || item.task.status === 'error',
-    );
-    if (!nextItem || activeCountRef.current >= concurrency) return;
+    const nextItem = queueRef.current.find(item => item.task.status === 'pending');
+    if (!nextItem) return;
 
     activeCountRef.current++;
     const { task } = nextItem;
 
-    // 标记为下载中
     updateTask(task.id, { status: 'downloading', progress: 0, loaded: 0, error: undefined });
     nextItem.task = { ...nextItem.task, status: 'downloading' };
 
@@ -120,10 +147,12 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
         if (err.name === 'AbortError') {
           updateTask(task.id, { status: 'cancelled', error: '已取消' });
           nextItem.task = { ...nextItem.task, status: 'cancelled' };
-        } else if (nextItem.retries < retryCount) {
-          // 重试
+        } else if (nextItem.retries < retryCountRef.current) {
           nextItem.retries++;
-          updateTask(task.id, { status: 'pending', progress: 0, loaded: 0, error: `失败，第 ${nextItem.retries} 次重试...` });
+          updateTask(task.id, {
+            status: 'pending', progress: 0, loaded: 0,
+            error: `失败，第 ${nextItem.retries} 次重试...`,
+          });
           nextItem.task = { ...nextItem.task, status: 'pending' };
         } else {
           updateTask(task.id, { status: 'error', error: err.message || '下载失败' });
@@ -134,23 +163,21 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
         activeCountRef.current--;
         controllersRef.current.delete(task.id);
 
-        // 检查是否全部完成
-        const allDone = queueRef.current.every(
+        const allSettled = queueRef.current.every(
           item => ['done', 'error', 'cancelled'].includes(item.task.status),
         );
-        if (allDone) {
-          setIsRunning(false);
+        if (allSettled) {
+          if (mountedRef.current) setIsRunning(false);
         } else {
-          // 继续处理队列
           processNext();
         }
       });
 
     // 尝试填满并发槽
-    if (activeCountRef.current < concurrency) {
+    if (activeCountRef.current < concurrencyRef.current) {
       setTimeout(processNext, 0);
     }
-  }, [concurrency, retryCount, downloadOne, updateTask]);
+  }, [downloadOne, updateTask]);
 
   // 开始批量下载
   const startDownload = useCallback((files: Omit<DownloadTask, 'status' | 'progress' | 'loaded'>[]) => {
@@ -165,7 +192,7 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
       loaded: 0,
     }));
 
-    setTasks(newTasks);
+    safeSetTasks(newTasks);
     setIsRunning(true);
 
     queueRef.current = newTasks.map(task => ({
@@ -174,11 +201,11 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
       controller: new AbortController(),
     }));
 
-    // 启动并发
-    for (let i = 0; i < Math.min(concurrency, newTasks.length); i++) {
+    const startCount = Math.min(concurrencyRef.current, newTasks.length);
+    for (let i = 0; i < startCount; i++) {
       processNext();
     }
-  }, [concurrency, processNext]);
+  }, [processNext, safeSetTasks]);
 
   // 重试失败的任务
   const retryFailed = useCallback(() => {
@@ -194,10 +221,11 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
       updateTask(item.task.id, { status: 'pending', progress: 0, loaded: 0, error: undefined });
     }
 
-    for (let i = 0; i < Math.min(concurrency, failedItems.length); i++) {
+    const startCount = Math.min(concurrencyRef.current, failedItems.length);
+    for (let i = 0; i < startCount; i++) {
       processNext();
     }
-  }, [concurrency, processNext, updateTask]);
+  }, [processNext, updateTask]);
 
   // 取消全部
   const cancelAll = useCallback(() => {
@@ -207,7 +235,7 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
     activeCountRef.current = 0;
     setIsRunning(false);
 
-    setTasks(prev =>
+    safeSetTasks(prev =>
       prev.map(t =>
         t.status === 'downloading' || t.status === 'pending'
           ? { ...t, status: 'cancelled' as const, error: '已取消' }
@@ -219,7 +247,7 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
         item.task = { ...item.task, status: 'cancelled' };
       }
     });
-  }, []);
+  }, [safeSetTasks]);
 
   // 取消单个
   const cancelOne = useCallback((id: string) => {
@@ -236,9 +264,9 @@ export function useConcurrentDownload(options: DownloadOptions = {}) {
   // 清空
   const reset = useCallback(() => {
     cancelAll();
-    setTasks([]);
+    safeSetTasks([]);
     queueRef.current = [];
-  }, [cancelAll]);
+  }, [cancelAll, safeSetTasks]);
 
   return {
     tasks,

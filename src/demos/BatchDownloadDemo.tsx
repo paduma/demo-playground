@@ -137,6 +137,11 @@ const BatchDownloadDemo: React.FC = () => {
 
   // --- 统计 ---
 
+  const taskMap = useMemo(
+    () => new Map(tasks.map(t => [t.id, t])),
+    [tasks],
+  );
+
   const stats = useMemo(() => {
     const total = tasks.length;
     const done = tasks.filter(t => t.status === 'done').length;
@@ -152,8 +157,13 @@ const BatchDownloadDemo: React.FC = () => {
 
   // --- 查找任务对应的文件类型 ---
 
+  const fileTypeMap = useMemo(
+    () => new Map(MOCK_FILES.map(f => [f.id, f.type])),
+    [],
+  );
+
   const getFileType = (taskId: string): FileItem['type'] => {
-    return MOCK_FILES.find(f => f.id === taskId)?.type || 'image';
+    return fileTypeMap.get(taskId) || 'image';
   };
 
   return (
@@ -256,7 +266,7 @@ const BatchDownloadDemo: React.FC = () => {
         }}>
           {MOCK_FILES.map(file => {
             const isSelected = selectedIds.has(file.id);
-            const task = tasks.find(t => t.id === file.id);
+            const task = taskMap.get(file.id);
             return (
               <div
                 key={file.id}
