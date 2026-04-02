@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, Link, Navigate } from 'react-router-dom';
 import { Layout, Menu } from 'antd';
 import VirtualEditableTableDemo from './demos/VirtualEditableTableDemo';
@@ -28,29 +28,42 @@ const menuItems = [
   { key: 'request', label: <Link to="/request">Token 自动刷新</Link> },
 ];
 
-const App: React.FC = () => (
-  <Layout style={{ minHeight: '100vh' }}>
-    <Sider width={240} style={{ background: '#fff' }}>
-      <h2 style={{ padding: '16px', textAlign: 'center', margin: 0 }}>Toolkit Demo</h2>
-      <Menu mode="inline" defaultSelectedKeys={['virtual-table']} items={menuItems} />
-    </Sider>
-    <Content style={{ padding: 24, background: '#f5f5f5' }}>
-      <Routes>
-        <Route path="/approval-template" element={<ApprovalTemplateDemo />} />
-        <Route path="/form-builder" element={<FormBuilderDemo />} />
-        <Route path="/configurable-table" element={<ConfigurableTableDemo />} />
-        <Route path="/org-tree" element={<OrgTreeDemo />} />
-        <Route path="/rbac" element={<RbacDemo />} />
-        <Route path="/file-manager" element={<FileManagerDemo />} />
-        <Route path="/notification" element={<NotificationDemo />} />
-        <Route path="/virtual-table" element={<VirtualEditableTableDemo />} />
-        <Route path="/text-highlight" element={<TextHighlightDemo />} />
-        <Route path="/resizable-table" element={<ResizableTableDemo />} />
-        <Route path="/request" element={<RequestDemo />} />
-        <Route path="*" element={<Navigate to="/approval-template" replace />} />
-      </Routes>
-    </Content>
-  </Layout>
-);
+const App: React.FC = () => {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <Layout style={{ minHeight: '100vh' }}>
+      <Sider
+        width={240}
+        collapsedWidth={60}
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        style={{ background: '#fff' }}
+      >
+        <h2 style={{ padding: '16px', textAlign: 'center', margin: 0, fontSize: collapsed ? 14 : 18, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+          {collapsed ? '🧰' : 'Toolkit Demo'}
+        </h2>
+        <Menu mode="inline" defaultSelectedKeys={['approval-template']} items={menuItems} />
+      </Sider>
+      <Content style={{ padding: 24, background: '#f5f5f5' }}>
+        <Routes>
+          <Route path="/approval-template" element={<ApprovalTemplateDemo />} />
+          <Route path="/form-builder" element={<FormBuilderDemo />} />
+          <Route path="/configurable-table" element={<ConfigurableTableDemo />} />
+          <Route path="/org-tree" element={<OrgTreeDemo />} />
+          <Route path="/rbac" element={<RbacDemo />} />
+          <Route path="/file-manager" element={<FileManagerDemo />} />
+          <Route path="/notification" element={<NotificationDemo />} />
+          <Route path="/virtual-table" element={<VirtualEditableTableDemo />} />
+          <Route path="/text-highlight" element={<TextHighlightDemo />} />
+          <Route path="/resizable-table" element={<ResizableTableDemo />} />
+          <Route path="/request" element={<RequestDemo />} />
+          <Route path="*" element={<Navigate to="/approval-template" replace />} />
+        </Routes>
+      </Content>
+    </Layout>
+  );
+};
 
 export default App;
