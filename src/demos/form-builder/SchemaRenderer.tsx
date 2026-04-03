@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   Form, Input, InputNumber, Select, DatePicker,
   Switch, Radio, Checkbox, Button, Col, Row, Empty, Tooltip, Modal,
@@ -8,14 +8,22 @@ import type { FormSchema, FieldSchema, FieldOption, LinkageRule, LinkageAction, 
 
 // --- 联动引擎 ---
 
-// 判断单个条件是否满足
+// 判断单个条件是否满足（宽松比较，处理 string/number 类型不匹配）
+function looseEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  // string vs number 宽松比较
+  if (typeof a === 'number' && typeof b === 'string') return a === Number(b);
+  if (typeof a === 'string' && typeof b === 'number') return Number(a) === b;
+  return String(a) === String(b);
+}
+
 function evalCondition(condition: LinkageCondition, formValues: Record<string, unknown>): boolean {
   const val = formValues[condition.field];
   switch (condition.operator) {
-    case '==': return val === condition.value;
-    case '!=': return val !== condition.value;
-    case 'in': return Array.isArray(condition.value) && condition.value.includes(val);
-    case 'notIn': return Array.isArray(condition.value) && !condition.value.includes(val);
+    case '==': return looseEqual(val, condition.value);
+    case '!=': return !looseEqual(val, condition.value);
+    case 'in': return Array.isArray(condition.value) && condition.value.some(v => looseEqual(val, v));
+    case 'notIn': return Array.isArray(condition.value) && !condition.value.some(v => looseEqual(val, v));
     case 'empty': return val === undefined || val === null || val === '';
     case 'notEmpty': return val !== undefined && val !== null && val !== '';
     default: return false;
@@ -104,6 +112,15 @@ const LinkedField: React.FC<{
   }, [depNames, depValues]);
 
   const linkage = computeLinkage(field, formValues);
+
+  // 字段从可见变为隐藏时，清空表单值防止提交脏数据
+  const prevVisibleRef = useRef(linkage.visible);
+  useEffect(() => {
+    if (prevVisibleRef.current && !linkage.visible) {
+      form.setFieldValue(field.name, undefined);
+    }
+    prevVisibleRef.current = linkage.visible;
+  }, [linkage.visible, field.name, form]);
 
   if (!linkage.visible) return null;
 
