@@ -1,24 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, theme } from 'antd';
+import { Layout, Menu, Spin, theme } from 'antd';
 import {
   AuditOutlined, SafetyCertificateOutlined, TableOutlined,
   ApartmentOutlined, FolderOutlined, BellOutlined,
   DatabaseOutlined, HighlightOutlined, ColumnWidthOutlined,
   KeyOutlined, AppstoreOutlined, CloudDownloadOutlined,
 } from '@ant-design/icons';
-import VirtualEditableTableDemo from './demos/VirtualEditableTableDemo';
-import TextHighlightDemo from './demos/TextHighlightDemo';
-import ResizableTableDemo from './demos/ResizableTableDemo';
-import RequestDemo from './demos/RequestDemo';
-import FormBuilderDemo from './demos/FormBuilderDemo';
-import ApprovalTemplateDemo from './demos/ApprovalTemplateDemo';
-import ConfigurableTableDemo from './demos/ConfigurableTableDemo';
-import OrgTreeDemo from './demos/OrgTreeDemo';
-import RbacDemo from './demos/RbacDemo';
-import FileManagerDemo from './demos/FileManagerDemo';
-import NotificationDemo from './demos/NotificationDemo';
-import BatchDownloadDemo from './demos/BatchDownloadDemo';
+
+// 路由懒加载：每个 demo 独立 chunk，首屏只加载当前路由的代码
+const ApprovalTemplateDemo = lazy(() => import('./demos/ApprovalTemplateDemo'));
+const FormBuilderDemo = lazy(() => import('./demos/FormBuilderDemo'));
+const ConfigurableTableDemo = lazy(() => import('./demos/ConfigurableTableDemo'));
+const OrgTreeDemo = lazy(() => import('./demos/OrgTreeDemo'));
+const RbacDemo = lazy(() => import('./demos/RbacDemo'));
+const FileManagerDemo = lazy(() => import('./demos/FileManagerDemo'));
+const NotificationDemo = lazy(() => import('./demos/NotificationDemo'));
+const VirtualEditableTableDemo = lazy(() => import('./demos/VirtualEditableTableDemo'));
+const TextHighlightDemo = lazy(() => import('./demos/TextHighlightDemo'));
+const ResizableTableDemo = lazy(() => import('./demos/ResizableTableDemo'));
+const RequestDemo = lazy(() => import('./demos/RequestDemo'));
+const BatchDownloadDemo = lazy(() => import('./demos/BatchDownloadDemo'));
 
 const { Sider, Content } = Layout;
 
@@ -101,21 +103,27 @@ const App: React.FC = () => {
         minHeight: '100vh',
         overflow: 'auto',
       }}>
-        <Routes>
-          <Route path="/approval-template" element={<ApprovalTemplateDemo />} />
-          <Route path="/form-builder" element={<FormBuilderDemo />} />
-          <Route path="/configurable-table" element={<ConfigurableTableDemo />} />
-          <Route path="/org-tree" element={<OrgTreeDemo />} />
-          <Route path="/rbac" element={<RbacDemo />} />
-          <Route path="/file-manager" element={<FileManagerDemo />} />
-          <Route path="/notification" element={<NotificationDemo />} />
-          <Route path="/virtual-table" element={<VirtualEditableTableDemo />} />
-          <Route path="/text-highlight" element={<TextHighlightDemo />} />
-          <Route path="/resizable-table" element={<ResizableTableDemo />} />
-          <Route path="/request" element={<RequestDemo />} />
-          <Route path="/batch-download" element={<BatchDownloadDemo />} />
-          <Route path="*" element={<Navigate to="/approval-template" replace />} />
-        </Routes>
+        <Suspense fallback={
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+            <Spin size="large" tip="加载中..." />
+          </div>
+        }>
+          <Routes>
+            <Route path="/approval-template" element={<ApprovalTemplateDemo />} />
+            <Route path="/form-builder" element={<FormBuilderDemo />} />
+            <Route path="/configurable-table" element={<ConfigurableTableDemo />} />
+            <Route path="/org-tree" element={<OrgTreeDemo />} />
+            <Route path="/rbac" element={<RbacDemo />} />
+            <Route path="/file-manager" element={<FileManagerDemo />} />
+            <Route path="/notification" element={<NotificationDemo />} />
+            <Route path="/virtual-table" element={<VirtualEditableTableDemo />} />
+            <Route path="/text-highlight" element={<TextHighlightDemo />} />
+            <Route path="/resizable-table" element={<ResizableTableDemo />} />
+            <Route path="/request" element={<RequestDemo />} />
+            <Route path="/batch-download" element={<BatchDownloadDemo />} />
+            <Route path="*" element={<Navigate to="/approval-template" replace />} />
+          </Routes>
+        </Suspense>
       </Content>
     </Layout>
   );
