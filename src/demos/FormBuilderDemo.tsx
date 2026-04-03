@@ -134,10 +134,26 @@ const FormBuilderDemo: React.FC = () => {
   const loadTemplate = useCallback((key: string) => {
     const tpl = FORM_TEMPLATES.find(t => t.key === key);
     if (!tpl) return;
-    setSchema(JSON.parse(JSON.stringify(tpl.schema)));
-    setSelectedId(null);
-    message.success(`已加载「${tpl.label}」模板`);
-  }, []);
+
+    const doLoad = () => {
+      setSchema(JSON.parse(JSON.stringify(tpl.schema)));
+      setSelectedId(null);
+      message.success(`已加载「${tpl.label}」模板`);
+    };
+
+    if (schema.fields.length > 0) {
+      Modal.confirm({
+        title: '加载模板',
+        content: `当前已有 ${schema.fields.length} 个字段，加载模板将覆盖所有内容，确定继续？`,
+        okText: '确定加载',
+        okType: 'danger',
+        cancelText: '取消',
+        onOk: doLoad,
+      });
+    } else {
+      doLoad();
+    }
+  }, [schema.fields.length]);
 
   /* JSON 导入 */
   const handleImport = useCallback(() => {
@@ -146,6 +162,13 @@ const FormBuilderDemo: React.FC = () => {
       if (!parsed.fields || !Array.isArray(parsed.fields)) {
         message.error('JSON 格式不正确：缺少 fields 数组');
         return;
+      }
+      for (let i = 0; i < parsed.fields.length; i++) {
+        const f = parsed.fields[i];
+        if (!f.id || !f.type || !f.label || !f.name) {
+          message.error(`第 ${i + 1} 个字段缺少必填属性（id/type/label/name）`);
+          return;
+        }
       }
       setSchema(parsed);
       setSelectedId(null);

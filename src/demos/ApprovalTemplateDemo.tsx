@@ -84,9 +84,42 @@ const ApprovalTemplateDemo: React.FC = () => {
   }, []);
 
   const deleteField = useCallback((id: string) => {
-    setSchema(prev => ({ ...prev, fields: prev.fields.filter(f => f.id !== id) }));
-    setSelectedId(prev => prev === id ? null : prev);
-  }, []);
+    const field = schema.fields.find(f => f.id === id);
+    if (!field) return;
+
+    // 检查是否被其他字段的联动规则引用
+    const referencedBy = schema.fields.filter(f =>
+      f.id !== id && f.linkages?.some(r => r.conditions.some(c => c.field === field.name))
+    );
+
+    const warnings: string[] = [];
+    if (referencedBy.length > 0) {
+      warnings.push(`被 ${referencedBy.map(f => `「${f.label}」`).join('、')} 的联动规则引用`);
+    }
+    // 流程条件分支可能引用了该字段（无法直接检查，给出提示）
+    warnings.push('流程设计中的条件分支可能引用了此字段');
+
+    Modal.confirm({
+      title: '确认删除',
+      content: (
+        <div>
+          <p>确定删除字段「{field.label}」？</p>
+          {warnings.length > 0 && (
+            <ul style={{ fontSize: 12, color: '#faad14', paddingLeft: 20, margin: '8px 0 0' }}>
+              {warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          )}
+        </div>
+      ),
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: () => {
+        setSchema(prev => ({ ...prev, fields: prev.fields.filter(f => f.id !== id) }));
+        setSelectedId(prev => prev === id ? null : prev);
+      },
+    });
+  }, [schema.fields]);
 
   const clearAll = useCallback(() => {
     setSchema(prev => ({ ...prev, fields: [] }));
@@ -111,21 +144,49 @@ const ApprovalTemplateDemo: React.FC = () => {
   const loadTemplate = useCallback((key: string) => {
     const tpl = FORM_TEMPLATES.find(t => t.key === key);
     if (!tpl) return;
-    setSchema(JSON.parse(JSON.stringify(tpl.schema)));
-    setSelectedId(null);
-    message.success(`已加载「${tpl.label}」模板`);
-  }, []);
+
+    const doLoad = () => {
+      setSchema(JSON.parse(JSON.stringify(tpl.schema)));
+      setSelectedId(null);
+      message.success(`已加载「${tpl.label}」模板`);
+    };
+
+    // 已有字段时二次确认，防止误操作丢失数据
+    if (schema.fields.length > 0) {
+      Modal.confirm({
+        title: '加载模板',
+        content: `当前已有 ${schema.fields.length} 个字段，加载模板将覆盖所有内容，确定继续？`,
+        okText: '确定加载',
+        okType: 'danger',
+        cancelText: '取消',
+        onOk: doLoad,
+      });
+    } else {
+      doLoad();
+    }
+  }, [schema.fields.length]);
 
   const handleImport = useCallback(() => {
     try {
       const parsed = JSON.parse(importJson) as FormSchema;
-      if (!parsed.fields || !Array.isArray(parsed.fields)) { message.error('JSON 格式不正确'); return; }
+      if (!parsed.fields || !Array.isArray(parsed.fields)) {
+        message.error('JSON 格式不正确：缺少 fields 数组');
+        return;
+      }
+      // 校验每个字段的必填属性
+      for (let i = 0; i < parsed.fields.length; i++) {
+        const f = parsed.fields[i];
+        if (!f.id || !f.type || !f.label || !f.name) {
+          message.error(`第 ${i + 1} 个字段缺少必填属性（id/type/label/name）`);
+          return;
+        }
+      }
       setSchema(parsed);
       setSelectedId(null);
       setImportOpen(false);
       setImportJson('');
       message.success('导入成功');
-    } catch { message.error('JSON 解析失败'); }
+    } catch { message.error('JSON 解析失败，请检查格式'); }
   }, [importJson]);
 
   const jsonOutput = useMemo(() => JSON.stringify(schema, null, 2), [schema]);

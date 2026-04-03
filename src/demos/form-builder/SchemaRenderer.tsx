@@ -153,19 +153,28 @@ const LinkedField: React.FC<{
       >
         <div
           className="field-actions"
-          style={{ position: 'absolute', top: 4, right: 4, display: 'none', gap: 2, zIndex: 10 }}
+          style={{
+            position: 'absolute', top: '50%', right: -32,
+            transform: 'translateY(-50%)',
+            display: isSelected ? 'flex' : 'none',
+            flexDirection: 'column',
+            gap: 2, zIndex: 10,
+            background: '#1677ff',
+            borderRadius: '0 6px 6px 0',
+            padding: '4px 3px',
+          }}
         >
-          <Tooltip title="复制字段" mouseEnterDelay={0.5}>
+          <Tooltip title="复制字段" placement="right" mouseEnterDelay={0.5}>
             <Button type="text" size="small"
-              icon={<CopyOutlined style={{ fontSize: 12 }} />}
+              icon={<CopyOutlined style={{ fontSize: 12, color: '#fff' }} />}
               onClick={e => { e.stopPropagation(); onCopyField?.(field.id); }}
-              style={{ width: 24, height: 24, minWidth: 24 }} />
+              style={{ width: 22, height: 22, minWidth: 22 }} />
           </Tooltip>
-          <Tooltip title="删除字段" mouseEnterDelay={0.5}>
-            <Button type="text" danger size="small"
-              icon={<DeleteOutlined style={{ fontSize: 12 }} />}
+          <Tooltip title="删除字段" placement="right" mouseEnterDelay={0.5}>
+            <Button type="text" size="small"
+              icon={<DeleteOutlined style={{ fontSize: 12, color: '#fff' }} />}
               onClick={e => { e.stopPropagation(); onDeleteField?.(field.id); }}
-              style={{ width: 24, height: 24, minWidth: 24 }} />
+              style={{ width: 22, height: 22, minWidth: 22 }} />
           </Tooltip>
         </div>
         <Form.Item
