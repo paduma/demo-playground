@@ -1,13 +1,14 @@
 import React from 'react';
 import { Form, Input, InputNumber, Switch, Select, Button, Divider, Space, Tag } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import type { FieldSchema, FieldOption } from './types';
+import type { FieldSchema, FieldOption, LinkageRule, LinkageCondition, LinkageAction, LinkageOperator } from './types';
 import { FIELD_TEMPLATES } from './types';
 
 interface Props {
   field: FieldSchema;
   onChange: (updated: FieldSchema) => void;
   onDelete: () => void;
+  allFields?: FieldSchema[];  // 所有字段列表，用于联动配置中选择依赖字段
   nameConflict?: boolean;
 }
 
@@ -18,7 +19,7 @@ const SPAN_OPTIONS = [
   { label: '1/4 行 (6)', value: 6 },
 ];
 
-const FieldConfig: React.FC<Props> = ({ field, onChange, onDelete, nameConflict }) => {
+const FieldConfig: React.FC<Props> = ({ field, onChange, onDelete, nameConflict, allFields = [] }) => {
   const hasOptions = ['select', 'radio', 'checkbox'].includes(field.type);
 
   const updateField = (patch: Partial<FieldSchema>) => {
@@ -168,6 +169,131 @@ const FieldConfig: React.FC<Props> = ({ field, onChange, onDelete, nameConflict 
             </Button>
           </>
         )}
+
+        {/* 联动规则配置 */}
+        <Divider style={{ margin: '12px 0' }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontWeight: 500 }}>联动规则</span>
+          <Button
+            type="dashed"
+            size="small"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              const newRule: LinkageRule = {
+                conditions: [{ field: '', operator: '==', value: '' }],
+                actions: [{ type: 'visible', visible: true }],
+              };
+              onChange({ ...field, linkages: [...(field.linkages || []), newRule] });
+            }}
+          >
+            添加规则
+          </Button>
+        </div>
+        {(!field.linkages || field.linkages.length === 0) && (
+          <div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>
+            暂无联动规则。添加后可控制字段的显隐、必填、禁用、选项。
+          </div>
+        )}
+        {field.linkages?.map((rule, ruleIdx) => {
+          const updateCondition = (condIdx: number, patch: Partial<LinkageCondition>) => {
+            const newLinkages = [...(field.linkages || [])];
+            const newConditions = [...newLinkages[ruleIdx].conditions];
+            newConditions[condIdx] = { ...newConditions[condIdx], ...patch };
+            newLinkages[ruleIdx] = { ...newLinkages[ruleIdx], conditions: newConditions };
+            onChange({ ...field, linkages: newLinkages });
+          };
+          const updateAction = (actIdx: number, action: LinkageAction) => {
+            const newLinkages = [...(field.linkages || [])];
+            const newActions = [...newLinkages[ruleIdx].actions];
+            newActions[actIdx] = action;
+            newLinkages[ruleIdx] = { ...newLinkages[ruleIdx], actions: newActions };
+            onChange({ ...field, linkages: newLinkages });
+          };
+          const removeRule = () => {
+            onChange({ ...field, linkages: field.linkages?.filter((_, i) => i !== ruleIdx) });
+          };
+
+          // 可选的依赖字段（排除自身）
+          const otherFields = allFields.filter(f => f.name !== field.name);
+
+          return (
+            <div key={ruleIdx} style={{
+              border: '1px solid #f0f0f0', borderRadius: 6, padding: 8, marginBottom: 8, background: '#fafafa',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Tag color="blue" style={{ fontSize: 11 }}>规则 {ruleIdx + 1}</Tag>
+                <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={removeRule} />
+              </div>
+
+              {/* 条件 */}
+              {rule.conditions.map((cond, condIdx) => (
+                <Space key={condIdx} style={{ display: 'flex', marginBottom: 4 }} size={4}>
+                  <Select
+                    size="small"
+                    style={{ width: 90 }}
+                    placeholder="字段"
+                    value={cond.field || undefined}
+                    onChange={v => updateCondition(condIdx, { field: v })}
+                    options={otherFields.map(f => ({ label: f.label, value: f.name }))}
+                  />
+                  <Select
+                    size="small"
+                    style={{ width: 72 }}
+                    value={cond.operator}
+                    onChange={v => updateCondition(condIdx, { operator: v as LinkageOperator })}
+                    options={[
+                      { label: '等于', value: '==' },
+                      { label: '不等于', value: '!=' },
+                      { label: '包含', value: 'in' },
+                      { label: '为空', value: 'empty' },
+                      { label: '非空', value: 'notEmpty' },
+                    ]}
+                  />
+                  {!['empty', 'notEmpty'].includes(cond.operator) && (
+                    <Input
+                      size="small"
+                      style={{ width: 70 }}
+                      placeholder="值"
+                      value={String(cond.value ?? '')}
+                      onChange={e => updateCondition(condIdx, { value: e.target.value })}
+                    />
+                  )}
+                </Space>
+              ))}
+
+              {/* 动作 */}
+              {rule.actions.map((action, actIdx) => (
+                <Space key={actIdx} style={{ display: 'flex', marginTop: 4 }} size={4}>
+                  <span style={{ fontSize: 11, color: '#999' }}>则</span>
+                  <Select
+                    size="small"
+                    style={{ width: 80 }}
+                    value={action.type}
+                    onChange={v => {
+                      const defaults: Record<string, LinkageAction> = {
+                        visible: { type: 'visible', visible: true },
+                        required: { type: 'required', required: true },
+                        disabled: { type: 'disabled', disabled: true },
+                        options: { type: 'options', options: [] },
+                      };
+                      updateAction(actIdx, defaults[v] || { type: 'visible', visible: true });
+                    }}
+                    options={[
+                      { label: '显示', value: 'visible' },
+                      { label: '必填', value: 'required' },
+                      { label: '禁用', value: 'disabled' },
+                      { label: '选项', value: 'options' },
+                    ]}
+                  />
+                  {action.type === 'visible' && <Tag color="green">显示此字段</Tag>}
+                  {action.type === 'required' && <Tag color="orange">设为必填</Tag>}
+                  {action.type === 'disabled' && <Tag color="default">设为禁用</Tag>}
+                  {action.type === 'options' && <Tag color="blue">替换选项</Tag>}
+                </Space>
+              ))}
+            </div>
+          );
+        })}
       </Form>
     </div>
   );

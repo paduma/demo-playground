@@ -1,15 +1,176 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   Form, Input, InputNumber, Select, DatePicker,
   Switch, Radio, Checkbox, Button, Col, Row, Empty, Tooltip, Modal,
 } from 'antd';
 import { DeleteOutlined, CopyOutlined } from '@ant-design/icons';
-import type { FormSchema, FieldSchema } from './types';
+import type { FormSchema, FieldSchema, FieldOption, LinkageRule, LinkageAction, LinkageCondition } from './types';
 
-/** 根据字段 schema 渲染对应的 antd 组件 */
-function renderField(field: FieldSchema): React.ReactNode {
-  const d = field.disabled;
+// --- 联动引擎 ---
+
+// 判断单个条件是否满足
+function evalCondition(condition: LinkageCondition, formValues: Record<string, unknown>): boolean {
+  const val = formValues[condition.field];
+  switch (condition.operator) {
+    case '==': return val === condition.value;
+    case '!=': return val !== condition.value;
+    case 'in': return Array.isArray(condition.value) && condition.value.includes(val);
+    case 'notIn': return Array.isArray(condition.value) && !condition.value.includes(val);
+    case 'empty': return val === undefined || val === null || val === '';
+    case 'notEmpty': return val !== undefined && val !== null && val !== '';
+    default: return false;
+  }
+}
+
+// 判断一条联动规则是否激活（所有条件 AND）
+function isRuleActive(rule: LinkageRule, formValues: Record<string, unknown>): boolean {
+  return rule.conditions.every(c => evalCondition(c, formValues));
+}
+
+// 计算字段的联动结果
+interface LinkageResult {
+  visible: boolean;
+  required: boolean;
+  disabled: boolean;
+  options?: FieldOption[];
+}
+
+function computeLinkage(field: FieldSchema, formValues: Record<string, unknown>): LinkageResult {
+  const result: LinkageResult = {
+    visible: !field.linkages || field.linkages.length === 0, // 没有联动规则的字段默认可见
+    required: !!field.rules?.required,
+    disabled: !!field.disabled,
+    options: field.options,
+  };
+
+  if (!field.linkages) return result;
+
+  // 有联动规则的字段默认隐藏，只有规则激活时才显示
+  let hasVisibilityRule = false;
+  let anyVisibilityActive = false;
+
+  for (const rule of field.linkages) {
+    const active = isRuleActive(rule, formValues);
+    for (const action of rule.actions) {
+      if (action.type === 'visible') {
+        hasVisibilityRule = true;
+        if (active) anyVisibilityActive = true;
+      }
+      if (!active) continue;
+      switch (action.type) {
+        case 'required': result.required = action.required; break;
+        case 'disabled': result.disabled = action.disabled; break;
+        case 'options': result.options = action.options; break;
+      }
+    }
+  }
+
+  if (hasVisibilityRule) {
+    result.visible = anyVisibilityActive;
+  }
+
+  return result;
+}
+
+// --- 联动感知的字段包装组件 ---
+
+const LinkedField: React.FC<{
+  field: FieldSchema;
+  isSelected: boolean;
+  schema: FormSchema;
+  onSelectField?: (id: string) => void;
+  onDeleteField?: (id: string) => void;
+  onCopyField?: (id: string) => void;
+}> = ({ field, isSelected, schema, onSelectField, onDeleteField, onCopyField }) => {
+  const form = Form.useFormInstance();
+
+  // 收集当前字段依赖的所有字段 name
+  const depNames = useMemo(
+    () => [...new Set(field.linkages?.flatMap(r => r.conditions.map(c => c.field)) || [])],
+    [field.linkages],
+  );
+
+  // 用 useWatch 监听依赖字段的值
+  const depValues = Form.useWatch(depNames.length > 0 ? depNames : ['__noop__'], form) || {};
+
+  // 构建 formValues 对象
+  const formValues = useMemo(() => {
+    if (depNames.length === 0) return {};
+    const values: Record<string, unknown> = {};
+    depNames.forEach((name, i) => {
+      values[name] = Array.isArray(depValues) ? depValues[i] : depValues?.[name];
+    });
+    return values;
+  }, [depNames, depValues]);
+
+  const linkage = computeLinkage(field, formValues);
+
+  if (!linkage.visible) return null;
+
+  // 动态构建 rules
+  const rules: Record<string, unknown>[] = [];
+  if (linkage.required) {
+    rules.push({ required: true, message: `${field.label}不能为空` });
+  }
+  if (field.rules?.pattern) {
+    try {
+      rules.push({ pattern: new RegExp(field.rules.pattern), message: field.rules.message || '格式不正确' });
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <Col span={field.span || 24}>
+      <div
+        className="field-wrapper"
+        onClick={() => onSelectField?.(field.id)}
+        style={{
+          position: 'relative',
+          padding: '4px 8px',
+          margin: '0 0 4px 0',
+          borderRadius: 6,
+          border: isSelected ? '2px solid #1677ff' : '2px solid transparent',
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+          background: isSelected ? 'rgba(22,119,255,0.02)' : undefined,
+        }}
+      >
+        <div
+          className="field-actions"
+          style={{ position: 'absolute', top: 4, right: 4, display: 'none', gap: 2, zIndex: 10 }}
+        >
+          <Tooltip title="复制字段" mouseEnterDelay={0.5}>
+            <Button type="text" size="small"
+              icon={<CopyOutlined style={{ fontSize: 12 }} />}
+              onClick={e => { e.stopPropagation(); onCopyField?.(field.id); }}
+              style={{ width: 24, height: 24, minWidth: 24 }} />
+          </Tooltip>
+          <Tooltip title="删除字段" mouseEnterDelay={0.5}>
+            <Button type="text" danger size="small"
+              icon={<DeleteOutlined style={{ fontSize: 12 }} />}
+              onClick={e => { e.stopPropagation(); onDeleteField?.(field.id); }}
+              style={{ width: 24, height: 24, minWidth: 24 }} />
+          </Tooltip>
+        </div>
+        <Form.Item
+          label={field.label}
+          name={field.name}
+          rules={rules}
+          valuePropName={field.type === 'switch' ? 'checked' : 'value'}
+          initialValue={field.defaultValue}
+          style={{ marginBottom: 8 }}
+        >
+          {renderField(field, linkage)}
+        </Form.Item>
+      </div>
+    </Col>
+  );
+};
+
+// 根据字段 schema + 联动结果渲染对应的 antd 组件
+function renderField(field: FieldSchema, linkage?: LinkageResult): React.ReactNode {
+  const d = linkage?.disabled ?? field.disabled;
   const r = field.readonly;
+  const opts = linkage?.options ?? field.options;
   switch (field.type) {
     case 'input':
       return <Input placeholder={field.placeholder || `请输入${field.label}`} disabled={d} readOnly={r} />;
@@ -29,7 +190,7 @@ function renderField(field: FieldSchema): React.ReactNode {
     case 'select':
       return (
         <Select placeholder={field.placeholder || `请选择${field.label}`} disabled={d}>
-          {field.options?.map(opt => (
+          {opts?.map(opt => (
             <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
           ))}
         </Select>
@@ -41,7 +202,7 @@ function renderField(field: FieldSchema): React.ReactNode {
     case 'radio':
       return (
         <Radio.Group disabled={d}>
-          {field.options?.map(opt => (
+          {opts?.map(opt => (
             <Radio key={opt.value} value={opt.value}>{opt.label}</Radio>
           ))}
         </Radio.Group>
@@ -50,7 +211,7 @@ function renderField(field: FieldSchema): React.ReactNode {
       return (
         <Checkbox.Group
           disabled={d}
-          options={field.options?.map(opt => ({ label: opt.label, value: opt.value }))}
+          options={opts?.map(opt => ({ label: opt.label, value: opt.value }))}
         />
       );
     default:
@@ -58,20 +219,6 @@ function renderField(field: FieldSchema): React.ReactNode {
   }
 }
 
-
-/** 构建 antd Form.Item 的 rules */
-function buildRules(field: FieldSchema) {
-  const rules: Record<string, unknown>[] = [];
-  if (field.rules?.required) {
-    rules.push({ required: true, message: `${field.label}不能为空` });
-  }
-  if (field.rules?.pattern) {
-    try {
-      rules.push({ pattern: new RegExp(field.rules.pattern), message: field.rules.message || '格式不正确' });
-    } catch { /* ignore invalid regex */ }
-  }
-  return rules;
-}
 
 interface Props {
   schema: FormSchema;
@@ -121,70 +268,17 @@ const SchemaRenderer: React.FC<Props> = ({ schema, selectedId, onSelectField, on
         wrapperCol={{ span: 24 - (schema.labelCol || 6) }}
       >
         <Row gutter={16}>
-          {schema.fields.map(field => {
-            const isSelected = selectedId === field.id;
-            return (
-              <Col key={field.id} span={field.span || 24}>
-                <div
-                  className="field-wrapper"
-                  onClick={() => onSelectField?.(field.id)}
-                  style={{
-                    position: 'relative',
-                    padding: '4px 8px',
-                    margin: '0 0 4px 0',
-                    borderRadius: 6,
-                    border: isSelected ? '2px solid #1677ff' : '2px solid transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    background: isSelected ? 'rgba(22,119,255,0.02)' : undefined,
-                  }}
-                >
-                  {/* hover / 选中时显示操作按钮 */}
-                  <div
-                    className="field-actions"
-                    style={{
-                      position: 'absolute',
-                      top: 4,
-                      right: 4,
-                      display: 'none',
-                      gap: 2,
-                      zIndex: 10,
-                    }}
-                  >
-                    <Tooltip title="复制字段" mouseEnterDelay={0.5}>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<CopyOutlined style={{ fontSize: 12 }} />}
-                        onClick={e => { e.stopPropagation(); onCopyField?.(field.id); }}
-                        style={{ width: 24, height: 24, minWidth: 24 }}
-                      />
-                    </Tooltip>
-                    <Tooltip title="删除字段" mouseEnterDelay={0.5}>
-                      <Button
-                        type="text"
-                        danger
-                        size="small"
-                        icon={<DeleteOutlined style={{ fontSize: 12 }} />}
-                        onClick={e => { e.stopPropagation(); onDeleteField?.(field.id); }}
-                        style={{ width: 24, height: 24, minWidth: 24 }}
-                      />
-                    </Tooltip>
-                  </div>
-                  <Form.Item
-                    label={field.label}
-                    name={field.name}
-                    rules={buildRules(field)}
-                    valuePropName={field.type === 'switch' ? 'checked' : 'value'}
-                    initialValue={field.defaultValue}
-                    style={{ marginBottom: 8 }}
-                  >
-                    {renderField(field)}
-                  </Form.Item>
-                </div>
-              </Col>
-            );
-          })}
+          {schema.fields.map(field => (
+            <LinkedField
+              key={field.id}
+              field={field}
+              isSelected={selectedId === field.id}
+              schema={schema}
+              onSelectField={onSelectField}
+              onDeleteField={onDeleteField}
+              onCopyField={onCopyField}
+            />
+          ))}
         </Row>
         <Form.Item wrapperCol={{ offset: schema.labelCol || 6 }}>
           <Button type="primary" onClick={handleSubmit}>

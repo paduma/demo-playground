@@ -37,6 +37,29 @@ export interface FieldSchema {
   span?: number;
   disabled?: boolean;
   readonly?: boolean;
+  // 联动规则：当依赖字段的值满足条件时，对当前字段执行动作
+  linkages?: LinkageRule[];
+}
+
+// --- 联动规则 ---
+
+export type LinkageAction =
+  | { type: 'visible'; visible: boolean }
+  | { type: 'required'; required: boolean }
+  | { type: 'disabled'; disabled: boolean }
+  | { type: 'options'; options: FieldOption[] };
+
+export type LinkageOperator = '==' | '!=' | 'in' | 'notIn' | 'empty' | 'notEmpty';
+
+export interface LinkageCondition {
+  field: string;           // 依赖的字段 name
+  operator: LinkageOperator;
+  value?: unknown;         // == / != / in / notIn 时需要
+}
+
+export interface LinkageRule {
+  conditions: LinkageCondition[];  // 多个条件之间是 AND 关系
+  actions: LinkageAction[];
 }
 
 /** 整个表单的 Schema */
@@ -164,6 +187,73 @@ export const FORM_TEMPLATES: FormTemplate[] = [
           ]
         },
         { id: 'fb5', type: 'input', label: '联系方式', name: 'contact', span: 12 },
+      ],
+    },
+  },
+  {
+    key: 'linkage',
+    label: '🔗 联动演示',
+    schema: {
+      title: '字段联动演示表单',
+      labelCol: 6,
+      fields: [
+        {
+          id: 'lk1', type: 'select', label: '请假类型', name: 'leaveType', span: 12,
+          rules: { required: true },
+          options: [
+            { label: '年假', value: 'annual' },
+            { label: '病假', value: 'sick' },
+            { label: '事假', value: 'personal' },
+            { label: '其他', value: 'other' },
+          ],
+        },
+        {
+          id: 'lk2', type: 'input', label: '病情说明', name: 'sickDesc',
+          rules: { required: true },
+          placeholder: '请描述病情',
+          linkages: [{
+            conditions: [{ field: 'leaveType', operator: '==', value: 'sick' }],
+            actions: [{ type: 'visible', visible: true }],
+          }],
+        },
+        {
+          id: 'lk3', type: 'input', label: '其他原因', name: 'otherReason',
+          placeholder: '请说明原因',
+          linkages: [{
+            conditions: [{ field: 'leaveType', operator: '==', value: 'other' }],
+            actions: [{ type: 'visible', visible: true }, { type: 'required', required: true }],
+          }],
+        },
+        {
+          id: 'lk4', type: 'number', label: '请假天数', name: 'days', span: 12,
+          rules: { required: true, min: 0.5, max: 30 },
+        },
+        {
+          id: 'lk5', type: 'select', label: '审批人', name: 'approver', span: 12,
+          rules: { required: true },
+          options: [
+            { label: '直属主管', value: 'manager' },
+          ],
+          linkages: [{
+            conditions: [{ field: 'days', operator: '!=', value: undefined }],
+            actions: [{
+              type: 'options',
+              options: [
+                { label: '直属主管', value: 'manager' },
+                { label: '部门负责人', value: 'director' },
+                { label: 'HR 总监', value: 'hr' },
+              ],
+            }],
+          }],
+        },
+        {
+          id: 'lk6', type: 'switch', label: '加急审批', name: 'urgent', span: 12,
+          linkages: [{
+            conditions: [{ field: 'leaveType', operator: 'in', value: ['sick', 'other'] }],
+            actions: [{ type: 'visible', visible: true }],
+          }],
+        },
+        { id: 'lk7', type: 'textarea', label: '备注', name: 'remark' },
       ],
     },
   },

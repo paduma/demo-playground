@@ -333,6 +333,7 @@ const FormBuilderDemo: React.FC = () => {
                     onChange={updateField}
                     onDelete={() => deleteField(selectedField.id)}
                     nameConflict={nameConflict}
+                    allFields={schema.fields}
                   />
                 ) : (
                   <div style={{ padding: 24, textAlign: 'center' }}>

@@ -227,7 +227,7 @@ const ApprovalTemplateDemo: React.FC = () => {
                 key: 'config', label: '属性配置',
                 children: selectedField ? (
                   <FieldConfig key={selectedField.id} field={selectedField}
-                    onChange={updateField} onDelete={() => deleteField(selectedField.id)} nameConflict={nameConflict} />
+                    onChange={updateField} onDelete={() => deleteField(selectedField.id)} nameConflict={nameConflict} allFields={schema.fields} />
                 ) : (
                   <div style={{ padding: 24, textAlign: 'center' }}><Text type="secondary">点击预览区字段进行配置</Text></div>
                 ),
