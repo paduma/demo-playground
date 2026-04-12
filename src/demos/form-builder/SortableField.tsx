@@ -14,10 +14,15 @@ interface Props {
 const SortableField: React.FC<Props> = ({ field, isSelected, onSelect, onDelete }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.id });
 
+  // 只保留垂直位移，避免水平溢出产生横向滚动条
+  const constrainedTransform = transform ? { ...transform, x: 0 } : transform;
+
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Transform.toString(constrainedTransform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    position: 'relative',
+    zIndex: isDragging ? 999 : undefined,
     display: 'flex',
     alignItems: 'center',
     gap: 8,
@@ -28,6 +33,7 @@ const SortableField: React.FC<Props> = ({ field, isSelected, onSelect, onDelete 
     background: isSelected ? '#e6f4ff' : '#fff',
     cursor: 'pointer',
     fontSize: 13,
+    boxShadow: isDragging ? '0 2px 8px rgba(0,0,0,0.12)' : undefined,
   };
 
   return (

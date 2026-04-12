@@ -1,332 +1,121 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Tabs, Card, Typography, Select, Space, Button, Popconfirm, message, Tooltip, Tag, Modal, Input, Slider } from 'antd';
-import { ClearOutlined, ColumnWidthOutlined, ImportOutlined, FileTextOutlined, ApartmentOutlined, FormOutlined } from '@ant-design/icons';
-import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
-import type { FormSchema, FieldSchema, FieldType } from './form-builder/types';
-import { FIELD_TEMPLATES, FORM_TEMPLATES, createField, genFieldId } from './form-builder/types';
+import { Tabs, Card, Typography, Tag, Button, Space, message } from 'antd';
+import { ApartmentOutlined, FormOutlined, EyeOutlined } from '@ant-design/icons';
+import type { FormSchema } from './form-builder/types';
+import { FORM_TEMPLATES } from './form-builder/types';
 import SchemaRenderer from './form-builder/SchemaRenderer';
-import FieldConfig from './form-builder/FieldConfig';
-import SortableField from './form-builder/SortableField';
 import FlowDesigner from './approval-flow/FlowDesigner';
-import '../form-builder.css';
 
-const { Text } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
-const COLUMN_OPTIONS = [
-  { label: '1 列', value: 24 },
-  { label: '2 列', value: 12 },
-  { label: '3 列', value: 8 },
+/**
+ * 审批模板设计器 — 组合演示
+ *
+ * 展示 FormBuilder 的 schema 输出 + FlowDesigner 的流程编排如何协作：
+ * - 表单字段被流程的条件分支引用
+ * - 整体构成一个完整的审批模板
+ *
+ * 不再内嵌完整的表单编辑逻辑，而是引用预设模板展示协作关系。
+ */
+
+const APPROVAL_TEMPLATES = [
+  {
+    key: 'leave',
+    label: '请假审批',
+    schema: {
+      title: '请假申请',
+      labelCol: 6,
+      fields: [
+        { id: 'f1', type: 'input' as const, label: '申请人', name: 'applicant', span: 12, rules: { required: true } },
+        {
+          id: 'f2', type: 'select' as const, label: '请假类型', name: 'leaveType', span: 12, rules: { required: true }, options: [
+            { label: '年假', value: 'annual' }, { label: '事假', value: 'personal' }, { label: '病假', value: 'sick' },
+          ]
+        },
+        { id: 'f3', type: 'date' as const, label: '开始日期', name: 'startDate', span: 12, rules: { required: true } },
+        { id: 'f4', type: 'date' as const, label: '结束日期', name: 'endDate', span: 12, rules: { required: true } },
+        { id: 'f5', type: 'number' as const, label: '请假天数', name: 'days', span: 12, rules: { required: true, min: 0.5, max: 30 } },
+        { id: 'f6', type: 'textarea' as const, label: '请假事由', name: 'reason', rules: { required: true } },
+      ],
+    },
+  },
+  {
+    key: 'expense',
+    label: '报销审批',
+    schema: {
+      title: '费用报销',
+      labelCol: 6,
+      fields: [
+        { id: 'e1', type: 'input' as const, label: '申请人', name: 'applicant', span: 12, rules: { required: true } },
+        {
+          id: 'e2', type: 'select' as const, label: '费用类型', name: 'expenseType', span: 12, rules: { required: true }, options: [
+            { label: '差旅', value: 'travel' }, { label: '办公', value: 'office' }, { label: '招待', value: 'entertainment' },
+          ]
+        },
+        { id: 'e3', type: 'number' as const, label: '金额', name: 'amount', span: 12, rules: { required: true, min: 0 } },
+        { id: 'e4', type: 'date' as const, label: '发生日期', name: 'date', span: 12, rules: { required: true } },
+        { id: 'e5', type: 'textarea' as const, label: '说明', name: 'description', rules: { required: true } },
+      ],
+    },
+  },
 ];
 
-const DEFAULT_SCHEMA: FormSchema = {
-  title: '请假申请',
-  labelCol: 6,
-  fields: [
-    { id: 'f1', type: 'input', label: '申请人', name: 'applicant', span: 12, rules: { required: true } },
-    {
-      id: 'f2', type: 'select', label: '请假类型', name: 'leaveType', span: 12, rules: { required: true }, options: [
-        { label: '年假', value: 'annual' }, { label: '事假', value: 'personal' }, { label: '病假', value: 'sick' }, { label: '调休', value: 'compensatory' },
-      ]
-    },
-    { id: 'f3', type: 'date', label: '开始日期', name: 'startDate', span: 12, rules: { required: true } },
-    { id: 'f4', type: 'date', label: '结束日期', name: 'endDate', span: 12, rules: { required: true } },
-    { id: 'f5', type: 'number', label: '请假天数', name: 'days', span: 12, rules: { required: true, min: 0.5, max: 30 } },
-    { id: 'f6', type: 'textarea', label: '请假事由', name: 'reason', rules: { required: true } },
-  ],
-};
-
 const ApprovalTemplateDemo: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('form');
-  const [schema, setSchema] = useState<FormSchema>(DEFAULT_SCHEMA);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importJson, setImportJson] = useState('');
-  const [editingTitle, setEditingTitle] = useState(false);
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  const selectedField = useMemo(
-    () => schema.fields.find(f => f.id === selectedId) || null,
-    [schema.fields, selectedId],
-  );
-
-  const nameConflict = useMemo(() => {
-    if (!selectedField) return false;
-    return schema.fields.some(f => f.id !== selectedField.id && f.name === selectedField.name);
-  }, [schema.fields, selectedField]);
-
-  const addField = useCallback((type: FieldType) => {
-    const field = createField(type);
-    setSchema(prev => ({ ...prev, fields: [...prev.fields, field] }));
-    setSelectedId(field.id);
-  }, []);
-
-  const copyField = useCallback((id: string) => {
-    setSchema(prev => {
-      const source = prev.fields.find(f => f.id === id);
-      if (!source) return prev;
-      const newId = genFieldId();
-      const copied: FieldSchema = { ...source, id: newId, name: `${source.name}_copy`, label: `${source.label}(副本)` };
-      const idx = prev.fields.findIndex(f => f.id === id);
-      const fields = [...prev.fields];
-      fields.splice(idx + 1, 0, copied);
-      return { ...prev, fields };
-    });
-    message.success('已复制');
-  }, []);
-
-  const updateField = useCallback((updated: FieldSchema) => {
-    setSchema(prev => ({ ...prev, fields: prev.fields.map(f => f.id === updated.id ? updated : f) }));
-  }, []);
-
-  const deleteField = useCallback((id: string) => {
-    const field = schema.fields.find(f => f.id === id);
-    if (!field) return;
-
-    // 检查是否被其他字段的联动规则引用
-    const referencedBy = schema.fields.filter(f =>
-      f.id !== id && f.linkages?.some(r => r.conditions.some(c => c.field === field.name))
-    );
-
-    const warnings: string[] = [];
-    if (referencedBy.length > 0) {
-      warnings.push(`被 ${referencedBy.map(f => `「${f.label}」`).join('、')} 的联动规则引用`);
-    }
-    // 流程条件分支可能引用了该字段（无法直接检查，给出提示）
-    warnings.push('流程设计中的条件分支可能引用了此字段');
-
-    Modal.confirm({
-      title: '确认删除',
-      content: (
-        <div>
-          <p>确定删除字段「{field.label}」？</p>
-          {warnings.length > 0 && (
-            <ul style={{ fontSize: 12, color: '#faad14', paddingLeft: 20, margin: '8px 0 0' }}>
-              {warnings.map((w, i) => <li key={i}>{w}</li>)}
-            </ul>
-          )}
-        </div>
-      ),
-      okText: '删除',
-      okType: 'danger',
-      cancelText: '取消',
-      onOk: () => {
-        setSchema(prev => ({ ...prev, fields: prev.fields.filter(f => f.id !== id) }));
-        setSelectedId(prev => prev === id ? null : prev);
-      },
-    });
-  }, [schema.fields]);
-
-  const clearAll = useCallback(() => {
-    setSchema(prev => ({ ...prev, fields: [] }));
-    setSelectedId(null);
-    message.success('已清空');
-  }, []);
-
-  const setGlobalColumns = useCallback((span: number) => {
-    setSchema(prev => ({ ...prev, fields: prev.fields.map(f => ({ ...f, span })) }));
-  }, []);
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    setSchema(prev => {
-      const oldIndex = prev.fields.findIndex(f => f.id === active.id);
-      const newIndex = prev.fields.findIndex(f => f.id === over.id);
-      return { ...prev, fields: arrayMove(prev.fields, oldIndex, newIndex) };
-    });
-  }, []);
-
-  const loadTemplate = useCallback((key: string) => {
-    const tpl = FORM_TEMPLATES.find(t => t.key === key);
-    if (!tpl) return;
-
-    const doLoad = () => {
-      setSchema(JSON.parse(JSON.stringify(tpl.schema)));
-      setSelectedId(null);
-      message.success(`已加载「${tpl.label}」模板`);
-    };
-
-    // 已有字段时二次确认，防止误操作丢失数据
-    if (schema.fields.length > 0) {
-      Modal.confirm({
-        title: '加载模板',
-        content: `当前已有 ${schema.fields.length} 个字段，加载模板将覆盖所有内容，确定继续？`,
-        okText: '确定加载',
-        okType: 'danger',
-        cancelText: '取消',
-        onOk: doLoad,
-      });
-    } else {
-      doLoad();
-    }
-  }, [schema.fields.length]);
-
-  const handleImport = useCallback(() => {
-    try {
-      const parsed = JSON.parse(importJson) as FormSchema;
-      if (!parsed.fields || !Array.isArray(parsed.fields)) {
-        message.error('JSON 格式不正确：缺少 fields 数组');
-        return;
-      }
-      // 校验每个字段的必填属性
-      for (let i = 0; i < parsed.fields.length; i++) {
-        const f = parsed.fields[i];
-        if (!f.id || !f.type || !f.label || !f.name) {
-          message.error(`第 ${i + 1} 个字段缺少必填属性（id/type/label/name）`);
-          return;
-        }
-      }
-      setSchema(parsed);
-      setSelectedId(null);
-      setImportOpen(false);
-      setImportJson('');
-      message.success('导入成功');
-    } catch { message.error('JSON 解析失败，请检查格式'); }
-  }, [importJson]);
-
-  const jsonOutput = useMemo(() => JSON.stringify(schema, null, 2), [schema]);
-
-  /* ── 表单设计 Tab 内容 ── */
-  const formDesignContent = (
-    <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 120px)' }}>
-      {/* 左侧 */}
-      <div style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Card size="small" title="快捷操作" style={{ flexShrink: 0 }}>
-          <Space direction="vertical" style={{ width: '100%' }} size={8}>
-            <Select
-              size="small" style={{ width: '100%' }} placeholder="选择预设模板..."
-              options={FORM_TEMPLATES.map(t => ({ label: t.label, value: t.key }))}
-              onChange={loadTemplate} value={null as unknown as string} allowClear
-            />
-            <Button size="small" icon={<ImportOutlined />} onClick={() => setImportOpen(true)} block>
-              导入 JSON Schema
-            </Button>
-          </Space>
-        </Card>
-
-        <Card size="small" title="组件面板" style={{ flexShrink: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            {FIELD_TEMPLATES.map(t => (
-              <div key={t.type} className="component-item" onClick={() => addField(t.type)}
-                style={{ padding: '6px 8px', borderRadius: 4, border: '1px dashed #d9d9d9', cursor: 'pointer', fontSize: 12, textAlign: 'center', transition: 'all 0.2s' }}>
-                <span style={{ marginRight: 4 }}>{t.icon}</span>{t.label}
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card size="small" style={{ flex: 1, overflow: 'auto' }}
-          title={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>字段列表 <Tag color="blue" style={{ marginLeft: 4 }}>{schema.fields.length}</Tag></span>
-              {schema.fields.length > 0 && (
-                <Popconfirm title="确定清空所有字段？" onConfirm={clearAll} okText="确定" cancelText="取消">
-                  <Tooltip title="清空所有"><Button type="text" size="small" danger icon={<ClearOutlined />} /></Tooltip>
-                </Popconfirm>
-              )}
-            </div>
-          }>
-          {schema.fields.length === 0 ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>暂无字段，点击上方组件添加</Text>
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={schema.fields.map(f => f.id)} strategy={verticalListSortingStrategy}>
-                {schema.fields.map(f => (
-                  <SortableField key={f.id} field={f} isSelected={f.id === selectedId}
-                    onSelect={() => setSelectedId(f.id)} onDelete={() => deleteField(f.id)} />
-                ))}
-              </SortableContext>
-            </DndContext>
-          )}
-        </Card>
-      </div>
-
-      {/* 中间：预览 */}
-      <Card style={{ flex: 1, overflow: 'auto' }} styles={{ body: { height: '100%' } }}
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FileTextOutlined />
-              {editingTitle ? (
-                <Input size="small" style={{ width: 200 }} value={schema.title}
-                  onChange={e => setSchema(prev => ({ ...prev, title: e.target.value }))}
-                  onBlur={() => setEditingTitle(false)} onPressEnter={() => setEditingTitle(false)} autoFocus />
-              ) : (
-                <span style={{ cursor: 'pointer', borderBottom: '1px dashed #d9d9d9' }}
-                  onClick={() => setEditingTitle(true)} title="点击编辑标题">
-                  {schema.title || '未命名表单'}
-                </span>
-              )}
-            </div>
-            <Space size="small">
-              <span style={{ fontSize: 12, color: '#999' }}>labelCol:</span>
-              <Slider min={2} max={10} value={schema.labelCol || 6}
-                onChange={v => setSchema(prev => ({ ...prev, labelCol: v }))}
-                style={{ width: 80, margin: '0 4px' }} tooltip={{ formatter: v => `${v}` }} />
-              <ColumnWidthOutlined style={{ color: '#999', fontSize: 14 }} />
-              <Select size="small" style={{ width: 90 }} placeholder="列数"
-                options={COLUMN_OPTIONS} onChange={setGlobalColumns} allowClear />
-            </Space>
-          </div>
-        }>
-        <SchemaRenderer schema={schema} selectedId={selectedId}
-          onSelectField={setSelectedId} onDeleteField={deleteField} onCopyField={copyField} />
-      </Card>
-
-      {/* 右侧：配置 */}
-      <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-        <Card style={{ flex: 1, overflow: 'auto' }} styles={{ body: { padding: 0, height: '100%' } }}>
-          <Tabs defaultActiveKey="config" style={{ height: '100%' }}
-            tabBarStyle={{ padding: '0 16px', marginBottom: 0 }}
-            items={[
-              {
-                key: 'config', label: '属性配置',
-                children: selectedField ? (
-                  <FieldConfig key={selectedField.id} field={selectedField}
-                    onChange={updateField} onDelete={() => deleteField(selectedField.id)} nameConflict={nameConflict} allFields={schema.fields} />
-                ) : (
-                  <div style={{ padding: 24, textAlign: 'center' }}><Text type="secondary">点击预览区字段进行配置</Text></div>
-                ),
-              },
-              {
-                key: 'json', label: 'JSON Schema',
-                children: (
-                  <pre style={{ padding: 16, margin: 0, fontSize: 11, lineHeight: 1.6, background: '#fafafa', height: '100%', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                    {jsonOutput}
-                  </pre>
-                ),
-              },
-            ]}
-          />
-        </Card>
-      </div>
-
-      <Modal title="导入 JSON Schema" open={importOpen} onOk={handleImport}
-        onCancel={() => { setImportOpen(false); setImportJson(''); }} okText="导入" cancelText="取消" width={600}>
-        <Input.TextArea rows={14} value={importJson} onChange={e => setImportJson(e.target.value)}
-          placeholder={'粘贴 JSON Schema...'} style={{ fontFamily: 'monospace', fontSize: 12 }} />
-      </Modal>
-    </div>
-  );
+  const [activeTab, setActiveTab] = useState('overview');
+  const [selectedTemplate, setSelectedTemplate] = useState(APPROVAL_TEMPLATES[0]);
 
   return (
     <div>
+      <div style={{ marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0, marginBottom: 8 }}>审批模板设计器</Title>
+        <Paragraph type="secondary" style={{ margin: 0, fontSize: 13 }}>
+          组合演示：表单 Schema 配置 + 流程编排协作。条件分支可引用表单字段实现动态路由。
+        </Paragraph>
+      </div>
+
+      {/* 模板选择 */}
+      <Space style={{ marginBottom: 16 }}>
+        {APPROVAL_TEMPLATES.map(t => (
+          <Button
+            key={t.key}
+            type={selectedTemplate.key === t.key ? 'primary' : 'default'}
+            onClick={() => setSelectedTemplate(t)}
+          >
+            {t.label}
+          </Button>
+        ))}
+      </Space>
+
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
         type="card"
-        size="large"
-        tabBarStyle={{ marginBottom: 12 }}
         items={[
           {
-            key: 'form',
-            label: <span><FormOutlined style={{ marginRight: 6 }} />表单设计</span>,
-            children: formDesignContent,
+            key: 'overview',
+            label: <span><EyeOutlined style={{ marginRight: 6 }} />表单预览</span>,
+            children: (
+              <Card title={
+                <span>
+                  {selectedTemplate.schema.title}
+                  <Tag color="green" style={{ marginLeft: 8 }}>{selectedTemplate.schema.fields.length} 个字段</Tag>
+                </span>
+              }>
+                <SchemaRenderer
+                  schema={selectedTemplate.schema}
+                  selectedId={null}
+                  onSelectField={() => { }}
+                  onDeleteField={() => { }}
+                  onCopyField={() => { }}
+                />
+                <div style={{ marginTop: 16, padding: 12, background: '#f6ffed', borderRadius: 6, fontSize: 12 }}>
+                  <Text type="secondary">
+                    💡 提示：完整的表单编辑功能请前往「Schema 表单配置器」或「Redux 表单设计器」demo。
+                    此处展示表单与流程的协作关系。
+                  </Text>
+                </div>
+              </Card>
+            ),
           },
           {
             key: 'flow',
@@ -334,10 +123,12 @@ const ApprovalTemplateDemo: React.FC = () => {
               <span>
                 <ApartmentOutlined style={{ marginRight: 6 }} />
                 流程设计
-                <Tag color="blue" style={{ marginLeft: 6, fontSize: 11 }}>{schema.fields.length} 字段可引用</Tag>
+                <Tag color="blue" style={{ marginLeft: 6, fontSize: 11 }}>
+                  {selectedTemplate.schema.fields.length} 字段可引用
+                </Tag>
               </span>
             ),
-            children: <FlowDesigner formFields={schema.fields} />,
+            children: <FlowDesigner formFields={selectedTemplate.schema.fields} />,
           },
         ]}
       />

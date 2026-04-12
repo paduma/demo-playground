@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Card, Tabs, Typography, Select, Space, Button, Popconfirm, message, Tooltip, Tag, Modal, Input, Slider } from 'antd';
-import { ClearOutlined, ColumnWidthOutlined, ImportOutlined, FileTextOutlined } from '@ant-design/icons';
+import { ClearOutlined, ColumnWidthOutlined, ImportOutlined, FileTextOutlined, EyeOutlined, EditOutlined } from '@ant-design/icons';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -11,6 +11,7 @@ import { FIELD_TEMPLATES, FORM_TEMPLATES, createField, genFieldId } from './form
 import SchemaRenderer from './form-builder/SchemaRenderer';
 import FieldConfig from './form-builder/FieldConfig';
 import SortableField from './form-builder/SortableField';
+import FormPreview from './form-builder/FormPreview';
 import '../form-builder.css';
 
 const { Text } = Typography;
@@ -49,6 +50,7 @@ const FormBuilderDemo: React.FC = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -184,228 +186,257 @@ const FormBuilderDemo: React.FC = () => {
   const jsonOutput = useMemo(() => JSON.stringify(schema, null, 2), [schema]);
 
   return (
-    <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 64px)' }}>
-
-      {/* ── 左侧：组件面板 + 字段列表 ── */}
-      <div style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* 模板选择 + JSON 导入 */}
-        <Card size="small" title="快捷操作" style={{ flexShrink: 0 }}>
-          <Space direction="vertical" style={{ width: '100%' }} size={8}>
-            <Select
-              size="small"
-              style={{ width: '100%' }}
-              placeholder="选择预设模板..."
-              options={FORM_TEMPLATES.map(t => ({ label: t.label, value: t.key }))}
-              onChange={loadTemplate}
-              value={null as unknown as string}
-              allowClear
-            />
-            <Button
-              size="small"
-              icon={<ImportOutlined />}
-              onClick={() => setImportOpen(true)}
-              block
-            >
-              导入 JSON Schema
-            </Button>
-          </Space>
-        </Card>
-
-        {/* 组件面板 */}
-        <Card size="small" title="组件面板" style={{ flexShrink: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            {FIELD_TEMPLATES.map(t => (
-              <div
-                key={t.type}
-                className="component-item"
-                onClick={() => addField(t.type)}
-                style={{
-                  padding: '6px 8px',
-                  borderRadius: 4,
-                  border: '1px dashed #d9d9d9',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  textAlign: 'center',
-                  transition: 'all 0.2s',
-                }}
-              >
-                <span style={{ marginRight: 4 }}>{t.icon}</span>
-                {t.label}
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* 字段列表（可拖拽排序） */}
-        <Card
-          size="small"
-          title={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>字段列表 <Tag color="blue" style={{ marginLeft: 4 }}>{schema.fields.length}</Tag></span>
-              {schema.fields.length > 0 && (
-                <Popconfirm title="确定清空所有字段？" onConfirm={clearAll} okText="确定" cancelText="取消">
-                  <Tooltip title="清空所有">
-                    <Button type="text" size="small" danger icon={<ClearOutlined />} />
-                  </Tooltip>
-                </Popconfirm>
-              )}
-            </div>
-          }
-          style={{ flex: 1, overflow: 'auto' }}
-        >
-          {schema.fields.length === 0 ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>暂无字段，点击上方组件添加</Text>
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={schema.fields.map(f => f.id)} strategy={verticalListSortingStrategy}>
-                {schema.fields.map(f => (
-                  <SortableField
-                    key={f.id}
-                    field={f}
-                    isSelected={f.id === selectedId}
-                    onSelect={() => setSelectedId(f.id)}
-                    onDelete={() => deleteField(f.id)}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-          )}
-        </Card>
+    <div>
+      {/* 顶部模式切换 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <Space>
+          <Button
+            type={mode === 'edit' ? 'primary' : 'default'}
+            icon={<EditOutlined />}
+            onClick={() => setMode('edit')}
+          >
+            编辑模式
+          </Button>
+          <Button
+            type={mode === 'preview' ? 'primary' : 'default'}
+            icon={<EyeOutlined />}
+            onClick={() => setMode('preview')}
+          >
+            运行时预览
+          </Button>
+        </Space>
+        {mode === 'preview' && (
+          <Tag color="green">联动规则实时生效，可实际填写并提交</Tag>
+        )}
       </div>
 
-      {/* ── 中间：表单预览 ── */}
-      <Card
-        style={{ flex: 1, overflow: 'auto' }}
-        styles={{ body: { height: '100%' } }}
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FileTextOutlined />
-              {editingTitle ? (
-                <Input
+      {mode === 'preview' ? (
+        <FormPreview schema={schema} />
+      ) : (
+        <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 110px)' }}>
+
+          {/* ── 左侧：组件面板 + 字段列表 ── */}
+          <div style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* 模板选择 + JSON 导入 */}
+            <Card size="small" title="快捷操作" style={{ flexShrink: 0 }}>
+              <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                <Select
                   size="small"
-                  style={{ width: 200 }}
-                  value={schema.title}
-                  onChange={e => setSchema(prev => ({ ...prev, title: e.target.value }))}
-                  onBlur={() => setEditingTitle(false)}
-                  onPressEnter={() => setEditingTitle(false)}
-                  autoFocus
+                  style={{ width: '100%' }}
+                  placeholder="选择预设模板..."
+                  options={FORM_TEMPLATES.map(t => ({ label: t.label, value: t.key }))}
+                  onChange={loadTemplate}
+                  value={null as unknown as string}
+                  allowClear
                 />
-              ) : (
-                <span
-                  style={{ cursor: 'pointer', borderBottom: '1px dashed #d9d9d9' }}
-                  onClick={() => setEditingTitle(true)}
-                  title="点击编辑标题"
+                <Button
+                  size="small"
+                  icon={<ImportOutlined />}
+                  onClick={() => setImportOpen(true)}
+                  block
                 >
-                  {schema.title || '未命名表单'}
-                </span>
-              )}
-            </div>
-            <Space size="small">
-              <Tooltip title="标签列宽">
-                <span style={{ fontSize: 12, color: '#999' }}>labelCol:</span>
-              </Tooltip>
-              <Slider
-                min={2}
-                max={10}
-                value={schema.labelCol || 6}
-                onChange={v => setSchema(prev => ({ ...prev, labelCol: v }))}
-                style={{ width: 80, margin: '0 4px' }}
-                tooltip={{ formatter: v => `${v}` }}
-              />
-              <ColumnWidthOutlined style={{ color: '#999', fontSize: 14 }} />
-              <Select
-                size="small"
-                style={{ width: 90 }}
-                placeholder="列数"
-                options={COLUMN_OPTIONS}
-                onChange={setGlobalColumns}
-                allowClear
-              />
-            </Space>
-          </div>
-        }
-      >
-        <SchemaRenderer
-          schema={schema}
-          selectedId={selectedId}
-          onSelectField={setSelectedId}
-          onDeleteField={deleteField}
-          onCopyField={copyField}
-        />
-      </Card>
+                  导入 JSON Schema
+                </Button>
+              </Space>
+            </Card>
 
-      {/* ── 右侧：属性配置 + JSON 预览 ── */}
-      <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-        <Card
-          style={{ flex: 1, overflow: 'auto' }}
-          styles={{ body: { padding: 0, height: '100%' } }}
-        >
-          <Tabs
-            defaultActiveKey="config"
-            style={{ height: '100%' }}
-            tabBarStyle={{ padding: '0 16px', marginBottom: 0 }}
-            items={[
-              {
-                key: 'config',
-                label: '属性配置',
-                children: selectedField ? (
-                  <FieldConfig
-                    key={selectedField.id}
-                    field={selectedField}
-                    onChange={updateField}
-                    onDelete={() => deleteField(selectedField.id)}
-                    nameConflict={nameConflict}
-                    allFields={schema.fields}
-                  />
-                ) : (
-                  <div style={{ padding: 24, textAlign: 'center' }}>
-                    <Text type="secondary">点击预览区字段进行配置</Text>
+            {/* 组件面板 */}
+            <Card size="small" title="组件面板" style={{ flexShrink: 0 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {FIELD_TEMPLATES.map(t => (
+                  <div
+                    key={t.type}
+                    className="component-item"
+                    onClick={() => addField(t.type)}
+                    style={{
+                      padding: '6px 8px',
+                      borderRadius: 4,
+                      border: '1px dashed #d9d9d9',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      textAlign: 'center',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <span style={{ marginRight: 4 }}>{t.icon}</span>
+                    {t.label}
                   </div>
-                ),
-              },
-              {
-                key: 'json',
-                label: 'JSON Schema',
-                children: (
-                  <pre style={{
-                    padding: 16,
-                    margin: 0,
-                    fontSize: 11,
-                    lineHeight: 1.6,
-                    background: '#fafafa',
-                    height: '100%',
-                    overflow: 'auto',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
-                  }}>
-                    {jsonOutput}
-                  </pre>
-                ),
-              },
-            ]}
-          />
-        </Card>
-      </div>
+                ))}
+              </div>
+            </Card>
 
-      {/* JSON 导入弹窗 */}
-      <Modal
-        title="导入 JSON Schema"
-        open={importOpen}
-        onOk={handleImport}
-        onCancel={() => { setImportOpen(false); setImportJson(''); }}
-        okText="导入"
-        cancelText="取消"
-        width={600}
-      >
-        <Input.TextArea
-          rows={14}
-          value={importJson}
-          onChange={e => setImportJson(e.target.value)}
-          placeholder={'粘贴 JSON Schema，格式如：\n{\n  "title": "表单标题",\n  "fields": [...]\n}'}
-          style={{ fontFamily: 'monospace', fontSize: 12 }}
-        />
-      </Modal>
+            {/* 字段列表（可拖拽排序） */}
+            <Card
+              size="small"
+              title={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>字段列表 <Tag color="blue" style={{ marginLeft: 4 }}>{schema.fields.length}</Tag></span>
+                  {schema.fields.length > 0 && (
+                    <Popconfirm title="确定清空所有字段？" onConfirm={clearAll} okText="确定" cancelText="取消">
+                      <Tooltip title="清空所有">
+                        <Button type="text" size="small" danger icon={<ClearOutlined />} />
+                      </Tooltip>
+                    </Popconfirm>
+                  )}
+                </div>
+              }
+              style={{ flex: 1, overflow: 'auto' }}
+            >
+              {schema.fields.length === 0 ? (
+                <Text type="secondary" style={{ fontSize: 12 }}>暂无字段，点击上方组件添加</Text>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={schema.fields.map(f => f.id)} strategy={verticalListSortingStrategy}>
+                    {schema.fields.map(f => (
+                      <SortableField
+                        key={f.id}
+                        field={f}
+                        isSelected={f.id === selectedId}
+                        onSelect={() => setSelectedId(f.id)}
+                        onDelete={() => deleteField(f.id)}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              )}
+            </Card>
+          </div>
+
+          {/* ── 中间：表单预览 ── */}
+          <Card
+            style={{ flex: 1, overflow: 'auto' }}
+            styles={{ body: { height: '100%' } }}
+            title={
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileTextOutlined />
+                  {editingTitle ? (
+                    <Input
+                      size="small"
+                      style={{ width: 200 }}
+                      value={schema.title}
+                      onChange={e => setSchema(prev => ({ ...prev, title: e.target.value }))}
+                      onBlur={() => setEditingTitle(false)}
+                      onPressEnter={() => setEditingTitle(false)}
+                      autoFocus
+                    />
+                  ) : (
+                    <span
+                      style={{ cursor: 'pointer', borderBottom: '1px dashed #d9d9d9' }}
+                      onClick={() => setEditingTitle(true)}
+                      title="点击编辑标题"
+                    >
+                      {schema.title || '未命名表单'}
+                    </span>
+                  )}
+                </div>
+                <Space size="small">
+                  <Tooltip title="标签列宽">
+                    <span style={{ fontSize: 12, color: '#999' }}>labelCol:</span>
+                  </Tooltip>
+                  <Slider
+                    min={2}
+                    max={10}
+                    value={schema.labelCol || 6}
+                    onChange={v => setSchema(prev => ({ ...prev, labelCol: v }))}
+                    style={{ width: 80, margin: '0 4px' }}
+                    tooltip={{ formatter: v => `${v}` }}
+                  />
+                  <ColumnWidthOutlined style={{ color: '#999', fontSize: 14 }} />
+                  <Select
+                    size="small"
+                    style={{ width: 90 }}
+                    placeholder="列数"
+                    options={COLUMN_OPTIONS}
+                    onChange={setGlobalColumns}
+                    allowClear
+                  />
+                </Space>
+              </div>
+            }
+          >
+            <SchemaRenderer
+              schema={schema}
+              selectedId={selectedId}
+              onSelectField={setSelectedId}
+              onDeleteField={deleteField}
+              onCopyField={copyField}
+            />
+          </Card>
+
+          {/* ── 右侧：属性配置 + JSON 预览 ── */}
+          <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+            <Card
+              style={{ flex: 1, overflow: 'auto' }}
+              styles={{ body: { padding: 0, height: '100%' } }}
+            >
+              <Tabs
+                defaultActiveKey="config"
+                style={{ height: '100%' }}
+                tabBarStyle={{ padding: '0 16px', marginBottom: 0 }}
+                items={[
+                  {
+                    key: 'config',
+                    label: '属性配置',
+                    children: selectedField ? (
+                      <FieldConfig
+                        key={selectedField.id}
+                        field={selectedField}
+                        onChange={updateField}
+                        onDelete={() => deleteField(selectedField.id)}
+                        nameConflict={nameConflict}
+                        allFields={schema.fields}
+                      />
+                    ) : (
+                      <div style={{ padding: 24, textAlign: 'center' }}>
+                        <Text type="secondary">点击预览区字段进行配置</Text>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'json',
+                    label: 'JSON Schema',
+                    children: (
+                      <pre style={{
+                        padding: 16,
+                        margin: 0,
+                        fontSize: 11,
+                        lineHeight: 1.6,
+                        background: '#fafafa',
+                        height: '100%',
+                        overflow: 'auto',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all',
+                      }}>
+                        {jsonOutput}
+                      </pre>
+                    ),
+                  },
+                ]}
+              />
+            </Card>
+          </div>
+
+          {/* JSON 导入弹窗 */}
+          <Modal
+            title="导入 JSON Schema"
+            open={importOpen}
+            onOk={handleImport}
+            onCancel={() => { setImportOpen(false); setImportJson(''); }}
+            okText="导入"
+            cancelText="取消"
+            width={600}
+          >
+            <Input.TextArea
+              rows={14}
+              value={importJson}
+              onChange={e => setImportJson(e.target.value)}
+              placeholder={'粘贴 JSON Schema，格式如：\n{\n  "title": "表单标题",\n  "fields": [...]\n}'}
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            />
+          </Modal>
+        </div>
+      )}
     </div>
   );
 };

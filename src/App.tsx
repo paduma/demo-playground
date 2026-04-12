@@ -6,11 +6,14 @@ import {
   ApartmentOutlined, FolderOutlined, BellOutlined,
   DatabaseOutlined, HighlightOutlined, ColumnWidthOutlined,
   KeyOutlined, AppstoreOutlined, CloudDownloadOutlined,
+  FormOutlined, BranchesOutlined,
 } from '@ant-design/icons';
 
-// 路由懒加载：每个 demo 独立 chunk，首屏只加载当前路由的代码
+// 路由懒加载
 const ApprovalTemplateDemo = lazy(() => import('./demos/ApprovalTemplateDemo'));
 const FormBuilderDemo = lazy(() => import('./demos/FormBuilderDemo'));
+const ReduxFormBuilderDemo = lazy(() => import('./demos/ReduxFormBuilderDemo'));
+const FlowDesignerDemo = lazy(() => import('./demos/FlowDesignerDemo'));
 const ConfigurableTableDemo = lazy(() => import('./demos/ConfigurableTableDemo'));
 const OrgTreeDemo = lazy(() => import('./demos/OrgTreeDemo'));
 const RbacDemo = lazy(() => import('./demos/RbacDemo'));
@@ -26,20 +29,32 @@ const { Sider, Content } = Layout;
 
 const menuItems = [
   {
-    key: 'grp-product',
-    label: '产品形态',
+    key: 'grp-designer',
+    label: '设计器 / 编辑器',
     type: 'group' as const,
     children: [
       { key: 'approval-template', icon: <AuditOutlined />, label: <Link to="/approval-template">审批模板设计器</Link> },
+      { key: 'flow-designer', icon: <BranchesOutlined />, label: <Link to="/flow-designer">流程设计器</Link> },
+      { key: 'form-builder', icon: <FormOutlined />, label: <Link to="/form-builder">表单配置器</Link> },
+      { key: 'redux-form-builder', icon: <AppstoreOutlined />, label: <Link to="/redux-form-builder">表单设计器(Redux)</Link> },
+    ],
+  },
+  { type: 'divider' as const, key: 'div-1' },
+  {
+    key: 'grp-business',
+    label: '业务场景',
+    type: 'group' as const,
+    children: [
       { key: 'rbac', icon: <SafetyCertificateOutlined />, label: <Link to="/rbac">权限管理</Link> },
       { key: 'org-tree', icon: <ApartmentOutlined />, label: <Link to="/org-tree">组织架构</Link> },
       { key: 'file-manager', icon: <FolderOutlined />, label: <Link to="/file-manager">文件管理器</Link> },
       { key: 'notification', icon: <BellOutlined />, label: <Link to="/notification">消息通知</Link> },
     ],
   },
+  { type: 'divider' as const, key: 'div-2' },
   {
     key: 'grp-engineering',
-    label: '工程难点',
+    label: '工程方案',
     type: 'group' as const,
     children: [
       { key: 'configurable-table', icon: <TableOutlined />, label: <Link to="/configurable-table">可配置表格</Link> },
@@ -57,7 +72,6 @@ const App: React.FC = () => {
   const location = useLocation();
   const { token: { colorBgContainer } } = theme.useToken();
 
-  // Derive selected key from current path
   const selectedKey = location.pathname.replace('/', '') || 'approval-template';
 
   return (
@@ -100,8 +114,8 @@ const App: React.FC = () => {
       <Content style={{
         padding: 20,
         background: '#f5f5f5',
-        minHeight: '100vh',
-        overflow: 'auto',
+        height: '100vh',
+        overflow: 'hidden',
       }}>
         <Suspense fallback={
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -110,7 +124,9 @@ const App: React.FC = () => {
         }>
           <Routes>
             <Route path="/approval-template" element={<ApprovalTemplateDemo />} />
+            <Route path="/flow-designer" element={<FlowDesignerDemo />} />
             <Route path="/form-builder" element={<FormBuilderDemo />} />
+            <Route path="/redux-form-builder" element={<ReduxFormBuilderDemo />} />
             <Route path="/configurable-table" element={<ConfigurableTableDemo />} />
             <Route path="/org-tree" element={<OrgTreeDemo />} />
             <Route path="/rbac" element={<RbacDemo />} />
