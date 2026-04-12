@@ -1,5 +1,5 @@
 import type { Middleware } from '@reduxjs/toolkit';
-import type { RootState } from './types';
+import type { RootState } from '../types';
 import { formActions } from './formSlice';
 import { historyActions } from './historySlice';
 

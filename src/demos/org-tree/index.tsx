@@ -9,13 +9,13 @@ import {
   FolderAddOutlined, DownOutlined, RightOutlined, LoadingOutlined,
   TeamOutlined, ApartmentOutlined,
 } from '@ant-design/icons';
-import type { OrgNode, OrgNodeType } from './org-tree/types';
-import { NODE_ICONS, NODE_COLORS } from './org-tree/types';
-import { MOCK_ORG_TREE, fetchChildren } from './org-tree/mock-data';
+import type { OrgNode, OrgNodeType } from './types';
+import { NODE_ICONS, NODE_COLORS } from './types';
+import { MOCK_ORG_TREE, fetchChildren } from './mock-data';
 import {
   findInForest, findParentInForest, collectAllIds,
   updateNodeInForest, removeFromForest, searchMatchedIds,
-} from '@/utils/tree';
+} from '@/shared/utils/tree';
 
 const { Text } = Typography;
 

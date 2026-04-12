@@ -10,8 +10,8 @@ import {
   FileImageOutlined, FilePdfOutlined, FileZipOutlined,
   FileExcelOutlined, FileWordOutlined,
 } from '@ant-design/icons';
-import { useConcurrentDownload } from '@/hooks/useConcurrentDownload';
-import type { DownloadTask, TaskStatus } from '@/hooks/useConcurrentDownload';
+import { useConcurrentDownload } from '@/shared/hooks/useConcurrentDownload';
+import type { DownloadTask, TaskStatus } from '@/shared/hooks/useConcurrentDownload';
 
 const { Text } = Typography;
 

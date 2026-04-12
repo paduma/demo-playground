@@ -8,12 +8,12 @@ import {
   ScissorOutlined, SnippetsOutlined, AppstoreOutlined, UnorderedListOutlined,
   UploadOutlined, HomeOutlined, ArrowUpOutlined, SearchOutlined,
 } from '@ant-design/icons';
-import type { FileNode } from './file-manager/types';
-import { getCategory, CATEGORY_ICONS, FOLDER_ICON, formatSize, genFileId } from './file-manager/types';
-import { MOCK_FILE_TREE } from './file-manager/mock-data';
+import type { FileNode } from './types';
+import { getCategory, CATEGORY_ICONS, FOLDER_ICON, formatSize, genFileId } from './types';
+import { MOCK_FILE_TREE } from './mock-data';
 import {
   cloneNode, findInTree, findParentInTree, removeFromTree, getPathInTree,
-} from '@/utils/tree';
+} from '@/shared/utils/tree';
 
 const { Text } = Typography;
 

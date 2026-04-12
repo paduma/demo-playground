@@ -6,12 +6,12 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
-import type { FormSchema, FieldSchema, FieldType } from './form-builder/types';
-import { FIELD_TEMPLATES, FORM_TEMPLATES, createField, genFieldId } from './form-builder/types';
-import SchemaRenderer from './form-builder/SchemaRenderer';
-import FieldConfig from './form-builder/FieldConfig';
-import SortableField from './form-builder/SortableField';
-import FormPreview from './form-builder/FormPreview';
+import type { FormSchema, FieldSchema, FieldType } from './types';
+import { FIELD_TEMPLATES, FORM_TEMPLATES, createField, genFieldId } from './types';
+import SchemaRenderer from './SchemaRenderer';
+import FieldConfig from './FieldConfig';
+import SortableField from './SortableField';
+import FormPreview from './FormPreview';
 import '../form-builder.css';
 
 const { Text } = Typography;

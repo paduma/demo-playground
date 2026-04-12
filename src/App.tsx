@@ -10,20 +10,20 @@ import {
 } from '@ant-design/icons';
 
 // 路由懒加载
-const ApprovalTemplateDemo = lazy(() => import('./demos/ApprovalTemplateDemo'));
-const FormBuilderDemo = lazy(() => import('./demos/FormBuilderDemo'));
-const ReduxFormBuilderDemo = lazy(() => import('./demos/ReduxFormBuilderDemo'));
-const FlowDesignerDemo = lazy(() => import('./demos/FlowDesignerDemo'));
-const ConfigurableTableDemo = lazy(() => import('./demos/ConfigurableTableDemo'));
-const OrgTreeDemo = lazy(() => import('./demos/OrgTreeDemo'));
-const RbacDemo = lazy(() => import('./demos/RbacDemo'));
-const FileManagerDemo = lazy(() => import('./demos/FileManagerDemo'));
-const NotificationDemo = lazy(() => import('./demos/NotificationDemo'));
-const VirtualEditableTableDemo = lazy(() => import('./demos/VirtualEditableTableDemo'));
-const TextHighlightDemo = lazy(() => import('./demos/TextHighlightDemo'));
-const ResizableTableDemo = lazy(() => import('./demos/ResizableTableDemo'));
-const RequestDemo = lazy(() => import('./demos/RequestDemo'));
-const BatchDownloadDemo = lazy(() => import('./demos/BatchDownloadDemo'));
+const ApprovalTemplateDemo = lazy(() => import('./demos/approval-template'));
+const FormBuilderDemo = lazy(() => import('./demos/form-builder'));
+const ReduxFormBuilderDemo = lazy(() => import('./demos/redux-form-builder'));
+const FlowDesignerDemo = lazy(() => import('./demos/flow-designer'));
+const ConfigurableTableDemo = lazy(() => import('./demos/configurable-table'));
+const OrgTreeDemo = lazy(() => import('./demos/org-tree'));
+const RbacDemo = lazy(() => import('./demos/rbac'));
+const FileManagerDemo = lazy(() => import('./demos/file-manager'));
+const NotificationDemo = lazy(() => import('./demos/notification'));
+const VirtualEditableTableDemo = lazy(() => import('./demos/virtual-table'));
+const TextHighlightDemo = lazy(() => import('./demos/text-highlight'));
+const ResizableTableDemo = lazy(() => import('./demos/resizable-table'));
+const RequestDemo = lazy(() => import('./demos/request'));
+const BatchDownloadDemo = lazy(() => import('./demos/batch-download'));
 
 const { Sider, Content } = Layout;
 

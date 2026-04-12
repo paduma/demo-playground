@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Tabs, Card, Typography, Tag, Button, Space, message } from 'antd';
 import { ApartmentOutlined, FormOutlined, EyeOutlined } from '@ant-design/icons';
-import type { FormSchema } from './form-builder/types';
-import { FORM_TEMPLATES } from './form-builder/types';
-import SchemaRenderer from './form-builder/SchemaRenderer';
-import FlowDesigner from './approval-flow/FlowDesigner';
+import type { FormSchema } from '../form-builder/types';
+import { FORM_TEMPLATES } from '../form-builder/types';
+import SchemaRenderer from '../form-builder/SchemaRenderer';
+import FlowDesigner from '../flow-designer/FlowDesigner';
 
 const { Title, Paragraph, Text } = Typography;
 

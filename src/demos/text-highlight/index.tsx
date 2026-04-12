@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Input, Button, Tag, Space } from 'antd';
-import TextHighlight from '@/components/TextHighlight';
-import type { HighlightRule } from '@/components/TextHighlight';
+import TextHighlight from '@/demos/text-highlight/TextHighlight';
+import type { HighlightRule } from '@/demos/text-highlight/TextHighlight';
 
 const sampleText =
   '访问 https://example.com 查看详情。关键词包括：安全审核、内容监控。另外 www.test.org 也需要检查。安全审核是重点工作。';

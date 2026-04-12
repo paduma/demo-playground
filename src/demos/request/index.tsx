@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Button, Space, message, Typography, Tag } from 'antd';
-import { createRequest } from '@/utils/request';
+import { createRequest } from '@/shared/utils/request';
 
 const { Paragraph, Text } = Typography;
 
