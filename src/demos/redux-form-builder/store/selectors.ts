@@ -1,5 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit';
-import type { FormSchema } from '../form-builder/types';
+import type { FormSchema } from '../../form-builder/types';
 import { fieldsAdapter, type RootState } from './types';
 
 const fieldsSelectors = fieldsAdapter.getSelectors<RootState>(

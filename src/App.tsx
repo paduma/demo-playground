@@ -6,7 +6,7 @@ import {
   ApartmentOutlined, FolderOutlined, BellOutlined,
   DatabaseOutlined, HighlightOutlined, ColumnWidthOutlined,
   KeyOutlined, AppstoreOutlined, CloudDownloadOutlined,
-  FormOutlined, BranchesOutlined,
+  FormOutlined, BranchesOutlined, DashboardOutlined, SafetyOutlined,
 } from '@ant-design/icons';
 
 // 路由懒加载
@@ -24,6 +24,8 @@ const TextHighlightDemo = lazy(() => import('./demos/text-highlight'));
 const ResizableTableDemo = lazy(() => import('./demos/resizable-table'));
 const RequestDemo = lazy(() => import('./demos/request'));
 const BatchDownloadDemo = lazy(() => import('./demos/batch-download'));
+const DashboardBuilderDemo = lazy(() => import('./demos/dashboard-builder'));
+const WatermarkDemo = lazy(() => import('./demos/watermark'));
 
 const { Sider, Content } = Layout;
 
@@ -37,6 +39,7 @@ const menuItems = [
       { key: 'flow-designer', icon: <BranchesOutlined />, label: <Link to="/flow-designer">流程设计器</Link> },
       { key: 'form-builder', icon: <FormOutlined />, label: <Link to="/form-builder">表单配置器</Link> },
       { key: 'redux-form-builder', icon: <AppstoreOutlined />, label: <Link to="/redux-form-builder">表单设计器(Redux)</Link> },
+      { key: 'dashboard-builder', icon: <DashboardOutlined />, label: <Link to="/dashboard-builder">看板构建器</Link> },
     ],
   },
   { type: 'divider' as const, key: 'div-1' },
@@ -63,6 +66,7 @@ const menuItems = [
       { key: 'resizable-table', icon: <ColumnWidthOutlined />, label: <Link to="/resizable-table">拖拽列宽</Link> },
       { key: 'request', icon: <KeyOutlined />, label: <Link to="/request">Token 刷新</Link> },
       { key: 'batch-download', icon: <CloudDownloadOutlined />, label: <Link to="/batch-download">批量下载</Link> },
+      { key: 'watermark', icon: <SafetyOutlined />, label: <Link to="/watermark">前端水印</Link> },
     ],
   },
 ];
@@ -137,6 +141,8 @@ const App: React.FC = () => {
             <Route path="/resizable-table" element={<ResizableTableDemo />} />
             <Route path="/request" element={<RequestDemo />} />
             <Route path="/batch-download" element={<BatchDownloadDemo />} />
+            <Route path="/dashboard-builder" element={<DashboardBuilderDemo />} />
+            <Route path="/watermark" element={<WatermarkDemo />} />
             <Route path="*" element={<Navigate to="/approval-template" replace />} />
           </Routes>
         </Suspense>

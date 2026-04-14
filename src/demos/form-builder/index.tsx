@@ -12,7 +12,7 @@ import SchemaRenderer from './SchemaRenderer';
 import FieldConfig from './FieldConfig';
 import SortableField from './SortableField';
 import FormPreview from './FormPreview';
-import '../form-builder.css';
+import './form-builder.css';
 
 const { Text } = Typography;
 

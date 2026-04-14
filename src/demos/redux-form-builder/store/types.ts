@@ -1,5 +1,5 @@
 import { createEntityAdapter } from '@reduxjs/toolkit';
-import type { FieldSchema } from '../form-builder/types';
+import type { FieldSchema } from '../../form-builder/types';
 
 /** Entity Adapter — 字段实体的规范化存储 */
 export const fieldsAdapter = createEntityAdapter<FieldSchema>();

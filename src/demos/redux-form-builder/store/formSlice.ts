@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { FieldSchema, FormSchema, FieldType } from '../form-builder/types';
-import { createField } from '../form-builder/types';
+import type { FieldSchema, FormSchema, FieldType } from '../../form-builder/types';
+import { createField } from '../../form-builder/types';
 import { fieldsAdapter, type FormState, initialFieldsState } from './types';
 
 const initialState: FormState = {

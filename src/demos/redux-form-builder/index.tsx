@@ -14,23 +14,23 @@ import {
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import type { FormSchema, FieldType } from './form-builder/types';
-import { FIELD_TEMPLATES, FORM_TEMPLATES } from './form-builder/types';
-import FieldConfig from './form-builder/FieldConfig';
-import SortableField from './form-builder/SortableField';
-import HistoryPanel from './redux-form-builder/HistoryPanel';
-import CanvasRenderer from './redux-form-builder/CanvasRenderer';
-import DraggableComponentItem from './redux-form-builder/dnd/DraggableComponentItem';
-import DroppableCanvas from './redux-form-builder/dnd/DroppableCanvas';
-import DragOverlayPreview from './redux-form-builder/dnd/DragOverlayPreview';
+import type { FormSchema, FieldType } from '../form-builder/types';
+import { FIELD_TEMPLATES, FORM_TEMPLATES } from '../form-builder/types';
+import FieldConfig from '../form-builder/FieldConfig';
+import SortableField from '../form-builder/SortableField';
+import HistoryPanel from './HistoryPanel';
+import CanvasRenderer from './CanvasRenderer';
+import DraggableComponentItem from './dnd/DraggableComponentItem';
+import DroppableCanvas from './dnd/DroppableCanvas';
+import DragOverlayPreview from './dnd/DragOverlayPreview';
 import {
   store, formActions, historyActions,
   selectOrderedFields, selectSelectedField, selectNameConflict,
   selectSchemaJson, selectCanUndo, selectCanRedo,
   selectSelectedIds, selectSelectionCount,
   type AppDispatch, type AppState,
-} from './redux-form-builder/store';
-import '../form-builder.css';
+} from './store';
+import '../form-builder/form-builder.css';
 
 const { Text } = Typography;
 

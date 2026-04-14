@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card } from 'antd';
-import ResizableTable from '@/components/ResizableTable';
-import type { ResizableColumnType } from '@/components/ResizableTable';
+import ResizableTable from './ResizableTable';
+import type { ResizableColumnType } from './ResizableTable';
+import './resizable.css';
 
 interface DataType {
   key: string;

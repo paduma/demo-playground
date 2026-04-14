@@ -1,7 +1,7 @@
 import React from 'react';
 import { Typography, Tag } from 'antd';
-import FlowDesigner from './approval-flow/FlowDesigner';
-import type { FieldSchema } from './form-builder/types';
+import FlowDesigner from './FlowDesigner';
+import type { FieldSchema } from '../form-builder/types';
 
 const { Title, Paragraph } = Typography;
 
